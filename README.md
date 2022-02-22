@@ -36,7 +36,7 @@ Clearly there is potential here. By using the unicode quarter block characters, 
 - ▝  (U+259D quadrant upper right)
 - ▖  (U+2596 quadrant lower left)
 - ▗  (U+2597 quadrant lower right)
-- ▞  (U+259E 1uadrant upper right and lower left)
+- ▞  (U+259E quadrant upper right and lower left)
 - ▄  (U+2584 lower half block)
 - ▐  (U+2590 right half block)
 - ▂  (U+2582 lower quarter block)

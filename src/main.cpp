@@ -241,12 +241,12 @@ int main(int argc, char *argv[]) {
             printf("\u001b[%d;%dH\u001b[48;2;0;0;0;38;2;255;255;255m   fps:  %5.2f   |   avg_fps:  %5.2f   |   print:  %6.2fms   |   dropped:  %5d   |   curr_frame:  %5d                 ",
                    msg_y, 0, (double) frametimes.size() * 1000000.0 / frame10_time, avg_fps,
                    (double) printing_time / 1000.0, dropped, curr_frame);
-            prevpixelbg[0] = 256;
-            prevpixelbg[1] = 256;
-            prevpixelbg[2] = 256;
-            prevpixel[0] = 256;
-            prevpixel[1] = 256;
-            prevpixel[2] = 256;
+            prevpixelbg[0] = 1000;
+            prevpixelbg[1] = 1000;
+            prevpixelbg[2] = 1000;
+            prevpixel[0] = 1000;
+            prevpixel[1] = 1000;
+            prevpixel[2] = 1000;
 
             // If the frame is empty, break immediately
             if (frame.empty()) {
