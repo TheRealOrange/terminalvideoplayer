@@ -10,19 +10,19 @@ Mileage may vary depending on how fast your terminal is. In my testing, I've fou
 .\tvp filename [threshold] 
 ```
 
-The threshold has to be an integer from 0 to 255, and defaults to 10. The threshold affects how much the colour of a certain pixel has to change before it will be redrawn. A lower threshold results in more redraws in most cases, and leads to choppy video.
+The threshold has to be an integer from 0 to 255, and defaults to 10. The threshold affects how much the colour of a certain pixel has to change before it will be redrawn. A lower threshold results in more redraws in most cases, and leads to choppy video. Unfortunately I can't be bothered to rewrite this to decode video using FFmpeg so you'll have to build it with OpenCV.
 
 Built on Manjaro with this command:
 
 ```sh
-g++ src/main.cpp -O3 -o ./bin/tvp `pkg-config --cflags --libs opencv4`
+g++ src/main.cpp -O3 -o tvp `pkg-config --cflags --libs opencv4`
 ```
 
 Below is a preview of how it looks:
 
 ![video playing in terminal](./imgs/video.gif)
 
-## how it works
+## How it works
 
 This is not a new concept. But most terminal video players I have seen use two pixels per character. The unicode character  ▄  (U+2584 lower half block) as the bottom half of the pixel, which can be coloured using the ANSI code for font colour, and the background colour, as the other pixel.
 
@@ -47,3 +47,4 @@ Other optimisations include
 - only changing pixels whose colour have changed a certain value
 - only inputting the ANSI code for cursor move when the next pixel isnt contiguous
 - only inputting the ANSI code for background colour change when the background colour differs significantly (set as a compile option)
+

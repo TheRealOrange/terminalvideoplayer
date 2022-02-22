@@ -168,8 +168,8 @@ int main(int argc, char *argv[]) {
                     start = std::chrono::high_resolution_clock::now();
                     videostart = std::chrono::high_resolution_clock::now();
                 }
-                printf("\u001b[0;0H");
-                for (int i = 0; i < w * (msg_y + 1); i++) printf(" ");
+                printf("\u001b[0;0H\u001b[48;2;0;0;0m");
+                for (int i = 0; i < curr_w * curr_h; i++) printf(" ");
             }
 
             stop = std::chrono::high_resolution_clock::now();
@@ -197,7 +197,7 @@ int main(int argc, char *argv[]) {
                 std::this_thread::sleep_until(std::chrono::microseconds(curr_frame * period - frame10_time/frametimes.size()) + videostart);
             }
 
-            printf("\u001b[0m\u001b[%d;%dH   fps:  %5.2f   |   avg_fps:  %5.2f   |   print:  %6.2fms   |   dropped:  %5d   |   curr_frame:  %5d                 ",
+            printf("\u001b[%d;%dH\u001b[48;2;0;0;0;38;2;255;255;255m   fps:  %5.2f   |   avg_fps:  %5.2f   |   print:  %6.2fms   |   dropped:  %5d   |   curr_frame:  %5d                 ",
                    msg_y, 0, (double) frametimes.size() * 1000000.0 / frame10_time, avg_fps,
                    (double) printing_time / 1000.0, dropped, curr_frame);
             prevpixelbg[0] = 1000;
