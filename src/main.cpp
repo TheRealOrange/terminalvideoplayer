@@ -8,16 +8,54 @@
 #include <csignal>
 #include <cstdlib>
 
-#define CHANGE_THRESHOLD 8
-#define PREFER_HALF      8
+#define CHANGE_THRESHOLD 3
 
-const char characters[7][4] = {"\u2584",
-                               "\u2590",
-                               "\u2598",
-                               "\u259d",
-                               "\u2596",
-                               "\u2597",
-                               "\u259e"};
+const char characters[9][4] = {"\u2584", // bottom half block
+                               "\u2590", // right half block
+                               "\u2598", // top left quarter
+                               "\u259d", // top right quarter
+                               "\u2596", // bottom left quarter
+                               "\u2597", // bottom right quarter
+                               "\u259e", // diagonal
+                               "\u2582", // lower quarter block
+                               "\u2586"};// lower 3 quarters block
+
+const int pixelmap[9][8] = {{0, 0,
+                                 0, 0,
+                                 1, 1,
+                                 1, 1},
+                            {0, 1,
+                                 0, 1,
+                                 0, 1,
+                                 0, 1},
+                            {1, 0,
+                                 1, 0,
+                                 0, 0,
+                                 0, 0},
+                            {0, 1,
+                                 0, 1,
+                                 0, 0,
+                                 0, 0},
+                            {0, 0,
+                                 0, 0,
+                                 1, 0,
+                                 1, 0},
+                            {0, 0,
+                                 0, 0,
+                                 0, 1,
+                                 0, 1},
+                            {0, 1,
+                                 0, 1,
+                                 1, 0,
+                                 1, 0},
+                            {0, 0,
+                                 0, 0,
+                                 0, 0,
+                                 1, 1},
+                            {0, 0,
+                                 1, 1,
+                                 1, 1,
+                                 1, 1}};
 
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
@@ -55,13 +93,14 @@ Mat resized;
 Mat old;
 
 int diff = 0;
-int pixel[2][2][3];
+int pixel[4][2][3];
 bool refresh = false;
 bool begin = true;
 
 int r, c;
 
 char printbuf[100000000];
+const char *shapechar;
 int count = 0, curr_frame = 0;;
 double fps;
 int period = 0;
@@ -81,8 +120,10 @@ int diffthreshold = 10;
 
 int curr_w, curr_h, orig_w = -1, orig_h = -1;
 
-int diff1, diff2, diff3, diff4, diff5, diff6, mindiff, diffbg, diffpixel;
-int case0, case1, case2, case3, case4, case5, case6;
+int mindiff, diffbg, diffpixel;
+int min_fg, min_bg, max_fg, max_bg;
+int cases[9];
+int case_min = 0;
 
 bool bgsame = false, pixelsame = false;
 
@@ -200,12 +241,12 @@ int main(int argc, char *argv[]) {
             printf("\u001b[%d;%dH\u001b[48;2;0;0;0;38;2;255;255;255m   fps:  %5.2f   |   avg_fps:  %5.2f   |   print:  %6.2fms   |   dropped:  %5d   |   curr_frame:  %5d                 ",
                    msg_y, 0, (double) frametimes.size() * 1000000.0 / frame10_time, avg_fps,
                    (double) printing_time / 1000.0, dropped, curr_frame);
-            prevpixelbg[0] = 1000;
-            prevpixelbg[1] = 1000;
-            prevpixelbg[2] = 1000;
-            prevpixel[0] = 1000;
-            prevpixel[1] = 1000;
-            prevpixel[2] = 1000;
+            prevpixelbg[0] = 256;
+            prevpixelbg[1] = 256;
+            prevpixelbg[2] = 256;
+            prevpixel[0] = 256;
+            prevpixel[1] = 256;
+            prevpixel[2] = 256;
 
             // If the frame is empty, break immediately
             if (frame.empty()) {
@@ -219,17 +260,15 @@ int main(int argc, char *argv[]) {
 
             r = -1;
             c = -1;
-            int y;
-            Vec3b *row[2];
-            Vec3b *oldrow[2];
+            Vec3b *row[4];
+            Vec3b *oldrow[4];
             for (int ay = 0; ay < resized.rows / 4; ay++) {
                 for (int x = 0; x < resized.cols / 2; x++) {
-                    y = ay * 2;
-                    for (int i = 0; i < 2; i++) {
-                        row[i] = resized.ptr<Vec3b>(y * 2 + i);
-                        oldrow[i] = old.ptr<Vec3b>(y * 2 + i);
+                    for (int i = 0; i < 4; i++) {
+                        row[i] = resized.ptr<Vec3b>(ay * 4 + i);
+                        oldrow[i] = old.ptr<Vec3b>(ay * 4 + i);
                     }
-                    for (int i = 0; i < 2; i++)
+                    for (int i = 0; i < 4; i++)
                         for (int j = 0; j < 2; j++)
                             for (int k = 0; k < 3; k++)
                                 pixel[i][j][k] = row[i][x * 2 + j][k];
@@ -237,246 +276,89 @@ int main(int argc, char *argv[]) {
                     diff = 0;
                     if (refresh) {
                         diff = 255;
+                    } else {
+                        for (int i = 0; i < 4; i++)
+                            for (int j = 0; j < 2; j++)
+                                for (int k = 0; k < 3; k++)
+                                    diff = std::max(diff, std::abs(oldrow[i][x * 2 + j][k] - pixel[i][j][k]));
                     }
 
-                    for (int i = 0; i < 2; i++)
-                        for (int j = 0; j < 2; j++)
-                            for (int k = 0; k < 3; k++)
-                                diff = std::max(diff, std::abs(oldrow[i][x * 2 + j][k] - pixel[i][j][k]));
-
                     if (diff >= diffthreshold) {
-                        diff1 = 0;
-                        diff2 = 0;
-                        diff3 = 0;
-                        diff4 = 0;
-                        diff5 = 0;
-                        diff6 = 0;
-                        for (int k = 0; k < 3; k++) {
-                            diff1 = std::max(diff1, std::abs(pixel[0][0][k] - pixel[1][1][k]));
-                            diff2 = std::max(diff2, std::abs(pixel[0][1][k] - pixel[1][0][k]));
-                            diff3 = std::max(diff3, std::abs(pixel[0][0][k] - pixel[0][1][k]));
-                            diff4 = std::max(diff4, std::abs(pixel[1][0][k] - pixel[1][1][k]));
-                            diff5 = std::max(diff5, std::abs(pixel[0][0][k] - pixel[1][0][k]));
-                            diff6 = std::max(diff6, std::abs(pixel[0][1][k] - pixel[1][1][k]));
+                        for (int & case_it : cases) case_it = 0;
+
+                        for (int k = 0; k < 3;k++) {
+                            for (int case_it = 0;case_it < sizeof(cases)/sizeof(cases[0]);case_it++) {
+                                min_fg = 256; min_bg = 256; max_fg = 0; max_bg = 0;
+                                for (int i = 0; i < 4; i++)
+                                    for (int j = 0; j < 2; j++) {
+                                        if (pixelmap[case_it][i * 2 + j]) {
+                                            min_fg = std::min(min_fg, pixel[i][j][k]);
+                                            max_fg = std::max(max_fg, pixel[i][j][k]);
+                                        } else {
+                                            min_bg = std::min(min_bg, pixel[i][j][k]);
+                                            max_bg = std::max(max_bg, pixel[i][j][k]);
+                                        }
+                                    }
+                                cases[case_it] = std::max(cases[case_it], std::max(max_fg - min_fg, max_bg - min_bg));
+                            }
                         }
 
-                        case0 = std::max(diff3, diff4);                   // top and bottom
-                        case1 = std::max(diff5, diff6);                   // left and right
-                        case2 = std::max(diff1, diff2);                   // diagonals
-                        case3 = std::max(diff2, std::max(diff4, diff6));  // top left quarter
-                        case4 = std::max(diff1, std::max(diff4, diff5));  // top right quarter
-                        case5 = std::max(diff1, std::max(diff3, diff6));  // bottom left quarter
-                        case6 = std::max(diff2, std::max(diff3, diff5));  // bottom right quarter
-
-                        mindiff = std::min(case0, std::min(case1, case2));
-                        mindiff = std::min(mindiff, std::min(std::min(case3, case4), std::min(case5, case6)));
+                        mindiff = 256;
+                        case_min = 0;
+                        for (int case_it = 0;case_it < sizeof(cases)/sizeof(cases[0]);case_it++) {
+                            if (cases[case_it] < mindiff) {
+                                case_min = case_it;
+                                mindiff = cases[case_it];
+                            }
+                        }
+                        shapechar = characters[case_min];
 
                         diffbg = 0;
                         diffpixel = 0;
                         bgsame = false;
                         pixelsame = false;
 
-                        if (r != ay || c != x) {
-                            printf("\u001b[%d;%dH", ay, x);
+                        for (int k = 0; k < 3; k++) {
+                            int bg_count = 0, fg_count = 0;
+                            pixelchar[k] = 0; pixelbg[k] = 0;
+                            for (int i = 0; i < 4; i++)
+                                for (int j = 0; j < 2; j++) {
+                                    if (pixelmap[case_min][i * 2 + j]) {
+                                        pixelchar[k] += pixel[i][j][k];
+                                        fg_count++;
+                                    } else {
+                                        pixelbg[k] += pixel[i][j][k];
+                                        bg_count++;
+                                    }
+                                }
+                            pixelchar[k] /= fg_count;
+                            pixelbg[k] /= bg_count;
+                            diffbg = std::max(diffbg, std::abs(pixelbg[k] - prevpixelbg[k]));
+                            diffpixel = std::max(diffpixel, std::abs(pixelchar[k] - prevpixel[k]));
                         }
 
-                        const char *shapechar;
-                        if (case0 <= mindiff + PREFER_HALF) {
-                            for (int k = 0; k < 3; k++) {
-                                pixelbg[k] = (pixel[0][0][k] + pixel[0][1][k]) / 2;
-                                diffbg = std::max(diffbg, std::abs(pixelbg[k] - prevpixelbg[k]));
-                                pixelchar[k] = (pixel[1][0][k] + pixel[1][1][k]) / 2;
-                                diffpixel = std::max(diffpixel, std::abs(pixelchar[k] - prevpixel[k]));
-                            }
+                        if (diffbg < CHANGE_THRESHOLD) {
+                            for (int k = 0;k < 3;k++) pixelbg[k] = prevpixelbg[k];
+                            bgsame = true;
+                        } else
+                            for (int k = 0;k < 3;k++) prevpixelbg[k] = pixelbg[k];
+                        if (diffpixel < CHANGE_THRESHOLD) {
+                            for (int k = 0;k < 3;k++) pixelchar[k] = prevpixel[k];
+                            pixelsame = true;
+                        } else
+                            for (int k = 0;k < 3;k++) prevpixel[k] = pixelchar[k];
 
-                            if (diffbg < CHANGE_THRESHOLD) {
-                                pixelbg[0] = prevpixelbg[0];
-                                pixelbg[1] = prevpixelbg[1];
-                                pixelbg[2] = prevpixelbg[2];
-                                bgsame = true;
-                            }
-                            if (diffpixel < CHANGE_THRESHOLD) {
-                                pixelchar[0] = prevpixel[0];
-                                pixelchar[1] = prevpixel[1];
-                                pixelchar[2] = prevpixel[2];
-                                pixelsame = true;
-                            }
+                        for (int k = 0; k < 3; k++)
+                            for (int i = 0; i < 4; i++)
+                                for (int j = 0; j < 2; j++) {
+                                    if (pixelmap[case_min][i * 2 + j])
+                                        oldrow[i][x * 2 + j][k] = pixelchar[k];
+                                    else
+                                        oldrow[i][x * 2 + j][k] = pixelbg[k];
+                                }
 
-                            for (int k = 0; k < 3; k++) {
-                                oldrow[0][x * 2 + 0][k] = pixelbg[k];
-                                oldrow[0][x * 2 + 1][k] = pixelbg[k];
-                                oldrow[1][x * 2 + 0][k] = pixelchar[k];
-                                oldrow[1][x * 2 + 1][k] = pixelchar[k];
-                            }
-                            shapechar = characters[0];
-                        } else if (case1 <= mindiff + PREFER_HALF) {
-                            for (int k = 0; k < 3; k++) {
-                                pixelbg[k] = (pixel[0][0][k] + pixel[1][0][k]) / 2;
-                                diffbg = std::max(diffbg, std::abs(pixelbg[k] - prevpixelbg[k]));
-                                pixelchar[k] = (pixel[0][1][k] + pixel[1][1][k]) / 2;
-                                diffpixel = std::max(diffpixel, std::abs(pixelchar[k] - prevpixel[k]));
-                            }
-
-                            if (diffbg < CHANGE_THRESHOLD) {
-                                pixelbg[0] = prevpixelbg[0];
-                                pixelbg[1] = prevpixelbg[1];
-                                pixelbg[2] = prevpixelbg[2];
-                                bgsame = true;
-                            }
-                            if (diffpixel < CHANGE_THRESHOLD) {
-                                pixelchar[0] = prevpixel[0];
-                                pixelchar[1] = prevpixel[1];
-                                pixelchar[2] = prevpixel[2];
-                                pixelsame = true;
-                            }
-
-                            for (int k = 0; k < 3; k++) {
-                                oldrow[0][x * 2 + 0][k] = pixelbg[k];
-                                oldrow[1][x * 2 + 0][k] = pixelbg[k];
-                                oldrow[0][x * 2 + 1][k] = pixelchar[k];
-                                oldrow[1][x * 2 + 1][k] = pixelchar[k];
-                            }
-                            shapechar = characters[1];
-                        } else if (case3 == mindiff) {
-                            for (int k = 0; k < 3; k++) {
-                                pixelbg[k] = (pixel[1][0][k] + pixel[0][1][k] + pixel[1][1][k]) / 3;
-                                diffbg = std::max(diffbg, std::abs(pixelbg[k] - prevpixelbg[k]));
-                                pixelchar[k] = pixel[0][0][k];
-                                diffpixel = std::max(diffpixel, std::abs(pixelchar[k] - prevpixel[k]));
-                            }
-
-                            if (diffbg < CHANGE_THRESHOLD) {
-                                pixelbg[0] = prevpixelbg[0];
-                                pixelbg[1] = prevpixelbg[1];
-                                pixelbg[2] = prevpixelbg[2];
-                                bgsame = true;
-                            }
-                            if (diffpixel < CHANGE_THRESHOLD) {
-                                pixelchar[0] = prevpixel[0];
-                                pixelchar[1] = prevpixel[1];
-                                pixelchar[2] = prevpixel[2];
-                                pixelsame = true;
-                            }
-
-                            for (int k = 0; k < 3; k++) {
-                                oldrow[1][x * 2 + 0][k] = pixelbg[k];
-                                oldrow[0][x * 2 + 1][k] = pixelbg[k];
-                                oldrow[1][x * 2 + 1][k] = pixelbg[k];
-                                oldrow[0][x * 2 + 0][k] = pixelchar[k];
-                            }
-                            shapechar = characters[2];
-                        } else if (case4 == mindiff) {
-                            for (int k = 0; k < 3; k++) {
-                                pixelbg[k] = (pixel[0][0][k] + pixel[1][0][k] + pixel[1][1][k]) / 3;
-                                diffbg = std::max(diffbg, std::abs(pixelbg[k] - prevpixelbg[k]));
-                                pixelchar[k] = pixel[0][1][k];
-                                diffpixel = std::max(diffpixel, std::abs(pixelchar[k] - prevpixel[k]));
-                            }
-
-                            if (diffbg < CHANGE_THRESHOLD) {
-                                pixelbg[0] = prevpixelbg[0];
-                                pixelbg[1] = prevpixelbg[1];
-                                pixelbg[2] = prevpixelbg[2];
-                                bgsame = true;
-                            }
-                            if (diffpixel < CHANGE_THRESHOLD) {
-                                pixelchar[0] = prevpixel[0];
-                                pixelchar[1] = prevpixel[1];
-                                pixelchar[2] = prevpixel[2];
-                                pixelsame = true;
-                            }
-
-                            for (int k = 0; k < 3; k++) {
-                                oldrow[0][x * 2 + 0][k] = pixelbg[k];
-                                oldrow[1][x * 2 + 0][k] = pixelbg[k];
-                                oldrow[1][x * 2 + 1][k] = pixelbg[k];
-                                oldrow[0][x * 2 + 1][k] = pixelchar[k];
-                            }
-                            shapechar = characters[3];
-                        } else if (case5 == mindiff) {
-                            for (int k = 0; k < 3; k++) {
-                                pixelbg[k] = (pixel[0][0][k] + pixel[0][1][k] + pixel[1][1][k]) / 3;
-                                diffbg = std::max(diffbg, std::abs(pixelbg[k] - prevpixelbg[k]));
-                                pixelchar[k] = pixel[1][0][k];
-                                diffpixel = std::max(diffpixel, std::abs(pixelchar[k] - prevpixel[k]));
-                            }
-
-                            if (diffbg < CHANGE_THRESHOLD) {
-                                pixelbg[0] = prevpixelbg[0];
-                                pixelbg[1] = prevpixelbg[1];
-                                pixelbg[2] = prevpixelbg[2];
-                                bgsame = true;
-                            }
-                            if (diffpixel < CHANGE_THRESHOLD) {
-                                pixelchar[0] = prevpixel[0];
-                                pixelchar[1] = prevpixel[1];
-                                pixelchar[2] = prevpixel[2];
-                                pixelsame = true;
-                            }
-
-                            for (int k = 0; k < 3; k++) {
-                                oldrow[0][x * 2 + 0][k] = pixelbg[k];
-                                oldrow[0][x * 2 + 1][k] = pixelbg[k];
-                                oldrow[1][x * 2 + 1][k] = pixelbg[k];
-                                oldrow[1][x * 2 + 0][k] = pixelchar[k];
-                            }
-                            shapechar = characters[4];
-                        } else if (case6 == mindiff) {
-                            for (int k = 0; k < 3; k++) {
-                                pixelbg[k] = (pixel[0][0][k] + pixel[0][1][k] + pixel[1][0][k]) / 3;
-                                diffbg = std::max(diffbg, std::abs(pixelbg[k] - prevpixelbg[k]));
-                                pixelchar[k] = pixel[1][1][k];
-                                diffpixel = std::max(diffpixel, std::abs(pixelchar[k] - prevpixel[k]));
-                            }
-
-                            if (diffbg < CHANGE_THRESHOLD) {
-                                pixelbg[0] = prevpixelbg[0];
-                                pixelbg[1] = prevpixelbg[1];
-                                pixelbg[2] = prevpixelbg[2];
-                                bgsame = true;
-                            }
-                            if (diffpixel < CHANGE_THRESHOLD) {
-                                pixelchar[0] = prevpixel[0];
-                                pixelchar[1] = prevpixel[1];
-                                pixelchar[2] = prevpixel[2];
-                                pixelsame = true;
-                            }
-
-                            for (int k = 0; k < 3; k++) {
-                                oldrow[0][x * 2 + 0][k] = pixelbg[k];
-                                oldrow[0][x * 2 + 1][k] = pixelbg[k];
-                                oldrow[1][x * 2 + 0][k] = pixelbg[k];
-                                oldrow[1][x * 2 + 1][k] = pixelchar[k];
-                            }
-                            shapechar = characters[5];
-                        } else {
-                            for (int k = 0; k < 3; k++) {
-                                pixelbg[k] = (pixel[0][0][k] + pixel[1][1][k]) / 2;
-                                diffbg = std::max(diffbg, std::abs(pixelbg[k] - prevpixelbg[k]));
-                                pixelchar[k] = (pixel[0][1][k] + pixel[1][0][k]) / 2;
-                                diffpixel = std::max(diffpixel, std::abs(pixelchar[k] - prevpixel[k]));
-                            }
-
-                            if (diffbg < 5) {
-                                pixelbg[0] = prevpixelbg[0];
-                                pixelbg[1] = prevpixelbg[1];
-                                pixelbg[2] = prevpixelbg[2];
-                                bgsame = true;
-                            }
-                            if (diffpixel < 5) {
-                                pixelchar[0] = prevpixel[0];
-                                pixelchar[1] = prevpixel[1];
-                                pixelchar[2] = prevpixel[2];
-                                pixelsame = true;
-                            }
-
-                            for (int k = 0; k < 3; k++) {
-                                oldrow[0][x * 2 + 0][k] = pixelbg[k];
-                                oldrow[1][x * 2 + 1][k] = pixelbg[k];
-                                oldrow[0][x * 2 + 1][k] = pixelchar[k];
-                                oldrow[1][x * 2 + 0][k] = pixelchar[k];
-                            }
-                            shapechar = characters[6];
+                        if (r != ay || c != x) {
+                            printf("\u001b[%d;%dH", ay, x);
                         }
 
                         if (!bgsame && !pixelsame)
@@ -485,9 +367,11 @@ int main(int argc, char *argv[]) {
                         else if (!bgsame)
                             printf("\u001b[48;2;%d;%d;%dm%s", pixelbg[2], pixelbg[1], pixelbg[0], shapechar);
                         else if (!pixelsame)
-                            printf("\001b[38;2;%d;%d;%dm%s", pixelchar[2], pixelchar[1], pixelchar[0], shapechar);
+                            printf("\u001b[38;2;%d;%d;%dm%s", pixelchar[2], pixelchar[1], pixelchar[0], shapechar);
+                        else
+                            printf("%s", shapechar);
 
-                        r = y;
+                        r = ay;
                         c = x + 1;
                         if (c == curr_w) {
                             c = 0;
