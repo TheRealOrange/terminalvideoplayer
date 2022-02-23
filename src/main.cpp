@@ -15,86 +15,105 @@
 #define DIFF_CASES 11
 
 const char characters[DIFF_CASES][4] = {"\u2584", // bottom half block
-                                "\u2590", // right half block
-                                "\u2598", // top left quarter
-                                "\u259d", // top right quarter
-                                "\u2596", // bottom left quarter
-                                "\u2597", // bottom right quarter
-                                "\u259e", // diagonal
-                                "\u2582", // lower quarter block
-                                "\u2586",
-                                "\u258e",
-                                "\u258a"};// lower 3 quarters block
+                                        "\u2590", // right half block
+                                        "\u2598", // top left quarter
+                                        "\u259d", // top right quarter
+                                        "\u2596", // bottom left quarter
+                                        "\u2597", // bottom right quarter
+                                        "\u259e", // diagonal
+                                        "\u2582", // lower quarter block
+                                        "\u2586",
+                                        "\u258e",
+                                        "\u258a"};// lower 3 quarters block
 
 const int pixelmap[DIFF_CASES][CHAR_Y*CHAR_X] = {{0, 0, 0, 0,
-                                                 0, 0, 0, 0,
-                                                 1, 1, 1, 1,
-                                                 1, 1, 1, 1},
-                                                {0, 0, 1, 1,
-                                                 0, 0, 1, 1,
-                                                 0, 0, 1, 1,
-                                                 0, 0, 1, 1},
-                                                {1, 1, 0, 0,
-                                                 1, 1, 0, 0,
-                                                 0, 0, 0, 0,
-                                                 0, 0, 0, 0},
-                                                {0, 0, 1, 1,
-                                                 0, 0, 1, 1,
-                                                 0, 0, 0, 0,
-                                                 0, 0, 0, 0},
-                                                {0, 0, 0, 0,
-                                                 0, 0, 0, 0,
-                                                 1, 1, 0, 0,
-                                                 1, 1, 0, 0},
-                                                {0, 0, 0, 0,
-                                                 0, 0, 0, 0,
-                                                 0, 0, 1, 1,
-                                                 0, 0, 1, 1},
-                                                {0, 0, 1, 1,
-                                                 0, 0, 1, 1,
-                                                 1, 1, 0, 0,
-                                                 1, 1, 0, 0},
-                                                {0, 0, 0, 0,
-                                                 0, 0, 0, 0,
-                                                 0, 0, 0, 0,
-                                                 1, 1, 1, 1},
-                                                {0, 0, 0, 0,
-                                                 1, 1, 1, 1,
-                                                 1, 1, 1, 1,
-                                                 1, 1, 1, 1},
-                                                {1, 0, 0, 0,
-                                                 1, 0, 0, 0,
-                                                 1, 0, 0, 0,
-                                                 1, 0, 0, 0},
-                                                {1, 1, 1, 0,
-                                                 1, 1, 1, 0,
-                                                 1, 1, 1, 0,
-                                                 1, 1, 1, 0}};
+                                                         0, 0, 0, 0,
+                                                         1, 1, 1, 1,
+                                                         1, 1, 1, 1},
+                                                 {0, 0, 1, 1,
+                                                         0, 0, 1, 1,
+                                                         0, 0, 1, 1,
+                                                         0, 0, 1, 1},
+                                                 {1, 1, 0, 0,
+                                                         1, 1, 0, 0,
+                                                         0, 0, 0, 0,
+                                                         0, 0, 0, 0},
+                                                 {0, 0, 1, 1,
+                                                         0, 0, 1, 1,
+                                                         0, 0, 0, 0,
+                                                         0, 0, 0, 0},
+                                                 {0, 0, 0, 0,
+                                                         0, 0, 0, 0,
+                                                         1, 1, 0, 0,
+                                                         1, 1, 0, 0},
+                                                 {0, 0, 0, 0,
+                                                         0, 0, 0, 0,
+                                                         0, 0, 1, 1,
+                                                         0, 0, 1, 1},
+                                                 {0, 0, 1, 1,
+                                                         0, 0, 1, 1,
+                                                         1, 1, 0, 0,
+                                                         1, 1, 0, 0},
+                                                 {0, 0, 0, 0,
+                                                         0, 0, 0, 0,
+                                                         0, 0, 0, 0,
+                                                         1, 1, 1, 1},
+                                                 {0, 0, 0, 0,
+                                                         1, 1, 1, 1,
+                                                         1, 1, 1, 1,
+                                                         1, 1, 1, 1},
+                                                 {1, 0, 0, 0,
+                                                         1, 0, 0, 0,
+                                                         1, 0, 0, 0,
+                                                         1, 0, 0, 0},
+                                                 {1, 1, 1, 0,
+                                                         1, 1, 1, 0,
+                                                         1, 1, 1, 0,
+                                                         1, 1, 1, 0}};
 
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
 #define VC_EXTRALEAN
 #include <Windows.h>
-#elif defined(__linux__)
+#elif defined(__linux__) || defined(__APPLE__)
 
+#include <fcntl.h>
 #include <sys/ioctl.h>
+#include <unistd.h>
 
 #endif // Windows/Linux
 
 using namespace cv;
 
 void get_terminal_size(int &width, int &height) {
-#if defined(_WIN32)
+    width = -1; height = -1;
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
     CONSOLE_SCREEN_BUFFER_INFO csbi;
     GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
     width = (int)(csbi.srWindow.Right-csbi.srWindow.Left+1);
     height = (int)(csbi.srWindow.Bottom-csbi.srWindow.Top+1);
-#elif defined(__linux__)
+#else
+    int result;
     struct winsize w{};
-    ioctl(fileno(stdout), TIOCGWINSZ, &w);
+    //credit https://github.com/sindresorhus/macos-term-size for the macos terminal code
+#if defined(__APPLE__)
+    int tty_fd = open("/dev/tty", O_EVTONLY | O_NONBLOCK);
+        if (tty_fd == -1) {
+            fprintf(stderr, "Opening `/dev/tty` failed (%d): %s\n", errno, strerror(errno));
+            return;
+        }
+        result = ioctl(tty_fd, TIOCGWINSZ, &w);
+        close(tty_fd);
+#elif defined(__linux__)
+    result = ioctl(fileno(stdout), TIOCGWINSZ, &w);
+#endif // MacOS/Linux
+    if (result == -1) {
+        fprintf(stderr, "Getting the size failed (%d): %s\n", errno, strerror(errno));
+        return;
+    }
     width = (int) (w.ws_col);
     height = (int) (w.ws_row);
-#endif // Windows/Linux
+#endif
 }
 
 int w = -1, h = -1;
@@ -127,7 +146,7 @@ int msg_y = 0;
 int dropped = 0;
 double skip;
 
-std::chrono::time_point<std::chrono::system_clock> start, stop, videostart, videostop, printtime;
+std::chrono::time_point<std::chrono::steady_clock> start, stop, videostart, videostop, printtime;
 long long total_printing_time = 0;
 
 int diffthreshold = 10;
@@ -149,7 +168,7 @@ int sx = 4, sy = 8;
 int skipy = sy/CHAR_Y, skipx = sx/CHAR_X;
 
 void terminateProgram([[maybe_unused]] int sig_num) {
-    videostop = std::chrono::high_resolution_clock::now();
+    videostop = std::chrono::steady_clock::now();
     long long total_video_time = (long long) std::chrono::duration_cast<std::chrono::microseconds>(
             videostop - videostart).count();
     printf("\u001b[0m\u001b[%d;%dHframes: %5d, dropped: %5d,  total time: %5.2fs,  printing time: %5.2fs                                                            \u001b[?25h",
@@ -160,7 +179,7 @@ void terminateProgram([[maybe_unused]] int sig_num) {
 }
 
 int main(int argc, char *argv[]) {
-    videostart = std::chrono::high_resolution_clock::now();
+    videostart = std::chrono::steady_clock::now();
     signal(SIGINT, terminateProgram);
     setvbuf(stdout, printbuf, _IOLBF, sizeof(printbuf));
     // Create a VideoCapture object and open the input file
@@ -170,8 +189,11 @@ int main(int argc, char *argv[]) {
         fflush(stdout);
         return 0;
     }
+#if defined(__APPLE__)
+    if (std::__fs::filesystem::exists(argv[1])) {
+#else
     if (std::filesystem::exists(argv[1])) {
-
+#endif
         if (argc > 2) diffthreshold = std::stoi(argv[2], nullptr, 10);
         diffthreshold = std::max(std::min(255, diffthreshold), 0);
         VideoCapture cap(argv[1]);
@@ -184,7 +206,7 @@ int main(int argc, char *argv[]) {
 
         fps = cap.get(CAP_PROP_FPS);
         period = (int) (1000000.0 / fps);
-        start = std::chrono::high_resolution_clock::now();
+        start = std::chrono::steady_clock::now();
         while (true) {
             count++;
             curr_frame++;
@@ -223,18 +245,18 @@ int main(int argc, char *argv[]) {
                     printf("frames per second:   %f\n", fps);
                     fflush(stdout);
                     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-                    start = std::chrono::high_resolution_clock::now();
-                    videostart = std::chrono::high_resolution_clock::now();
+                    start = std::chrono::steady_clock::now();
+                    videostart = std::chrono::steady_clock::now();
                 }
                 printf("\u001b[0;0H\u001b[48;2;0;0;0m");
                 for (int i = 0; i < curr_w * curr_h; i++) printf(" ");
             }
 
-            stop = std::chrono::high_resolution_clock::now();
+            stop = std::chrono::steady_clock::now();
             elapsed = (int)std::chrono::duration_cast<std::chrono::microseconds>(stop - videostart).count();
             int frame_time = (int)std::chrono::duration_cast<std::chrono::microseconds>(
                     stop - start).count();
-            start = std::chrono::high_resolution_clock::now();
+            start = std::chrono::steady_clock::now();
 
             total_time = elapsed;
             avg_fps = (double) count * 1000000.0 / (double) total_time;
@@ -399,10 +421,10 @@ int main(int argc, char *argv[]) {
                 }
             }
             refresh = false;
-            printtime = std::chrono::high_resolution_clock::now();
+            printtime = std::chrono::steady_clock::now();
             fflush(stdout);
 
-            printing_time = (int) std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - printtime).count();
+            printing_time = (int) std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - printtime).count();
             total_printing_time += printing_time;
         }
 
