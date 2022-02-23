@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This is a cursed terminal video player. This improves on some previous designs by implementing some optimisations such as not changing the text/background colour if the next pixel is similar enough. The video player also manages to get 8 "pixels" (effectively) out of every character as opposed to the usual 2 pixels by using the unicode quarter block characters. The pixels aren't really independent, each character is still limited to two colours.
+This is a cursed terminal video player. This improves on some previous designs by implementing some optimisations such as not changing the text/background colour if the next pixel is similar enough. The video player also manages to get 11 "pixels" (effectively) out of every character as opposed to the usual 2 pixels by using the unicode quarter block characters. The pixels however aren't really independent, and each character is still limited to two colours.
 
 Mileage may vary depending on how fast your terminal is. In my testing, I've found that [alacritty](https://github.com/alacritty/alacritty) works rather well.
 
@@ -41,8 +41,10 @@ Clearly there is potential here. By using the unicode quarter block characters, 
 - ▐  (U+2590 right half block)
 - ▂  (U+2582 lower quarter block)
 - ▆  (U+2586 lower 3 quarters block)
+- ▎  (U+258E left quarter block)
+- ▊  (U+258A left 3 quarters block)
 
-We have all the building blocks for effectively double the horizontal and vertical resolution! However, we are still limited to two colours per pixel. So, we pick the configuration that minimizes the maximum difference between colours which will be made the same, and then set the colour to the average colour.
+We have all the building blocks for effectively kind of quadruple the horizontal and double the vertical resolution! However, we are still limited to two colours per pixel. So, we pick the configuration that minimizes the maximum difference between colours which will be made the same, and then set the colour to the average colour.
 
 Other optimisations include 
 
