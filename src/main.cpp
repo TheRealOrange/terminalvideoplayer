@@ -10,52 +10,66 @@
 
 #define CHANGE_THRESHOLD 3
 
-const char characters[9][4] = {"\u2584", // bottom half block
-                               "\u2590", // right half block
-                               "\u2598", // top left quarter
-                               "\u259d", // top right quarter
-                               "\u2596", // bottom left quarter
-                               "\u2597", // bottom right quarter
-                               "\u259e", // diagonal
-                               "\u2582", // lower quarter block
-                               "\u2586"};// lower 3 quarters block
+#define CHAR_Y 4
+#define CHAR_X 4
+#define DIFF_CASES 11
 
-const int pixelmap[9][8] = {{0, 0,
-                                 0, 0,
-                                 1, 1,
-                                 1, 1},
-                            {0, 1,
-                                 0, 1,
-                                 0, 1,
-                                 0, 1},
-                            {1, 0,
-                                 1, 0,
-                                 0, 0,
-                                 0, 0},
-                            {0, 1,
-                                 0, 1,
-                                 0, 0,
-                                 0, 0},
-                            {0, 0,
-                                 0, 0,
-                                 1, 0,
-                                 1, 0},
-                            {0, 0,
-                                 0, 0,
-                                 0, 1,
-                                 0, 1},
-                            {0, 1,
-                                 0, 1,
-                                 1, 0,
-                                 1, 0},
-                            {0, 0,
-                                 0, 0,
-                                 0, 0,
-                                 1, 1},
-                            {0, 0,
-                                 1, 1,
-                                 1, 1,
-                                 1, 1}};
+const char characters[DIFF_CASES][4] = {"\u2584", // bottom half block
+                                "\u2590", // right half block
+                                "\u2598", // top left quarter
+                                "\u259d", // top right quarter
+                                "\u2596", // bottom left quarter
+                                "\u2597", // bottom right quarter
+                                "\u259e", // diagonal
+                                "\u2582", // lower quarter block
+                                "\u2586",
+                                "\u258e",
+                                "\u258a"};// lower 3 quarters block
+
+const int pixelmap[DIFF_CASES][CHAR_Y*CHAR_X] = {{0, 0, 0, 0,
+                                                 0, 0, 0, 0,
+                                                 1, 1, 1, 1,
+                                                 1, 1, 1, 1},
+                                                {0, 0, 1, 1,
+                                                 0, 0, 1, 1,
+                                                 0, 0, 1, 1,
+                                                 0, 0, 1, 1},
+                                                {1, 1, 0, 0,
+                                                 1, 1, 0, 0,
+                                                 0, 0, 0, 0,
+                                                 0, 0, 0, 0},
+                                                {0, 0, 1, 1,
+                                                 0, 0, 1, 1,
+                                                 0, 0, 0, 0,
+                                                 0, 0, 0, 0},
+                                                {0, 0, 0, 0,
+                                                 0, 0, 0, 0,
+                                                 1, 1, 0, 0,
+                                                 1, 1, 0, 0},
+                                                {0, 0, 0, 0,
+                                                 0, 0, 0, 0,
+                                                 0, 0, 1, 1,
+                                                 0, 0, 1, 1},
+                                                {0, 0, 1, 1,
+                                                 0, 0, 1, 1,
+                                                 1, 1, 0, 0,
+                                                 1, 1, 0, 0},
+                                                {0, 0, 0, 0,
+                                                 0, 0, 0, 0,
+                                                 0, 0, 0, 0,
+                                                 1, 1, 1, 1},
+                                                {0, 0, 0, 0,
+                                                 1, 1, 1, 1,
+                                                 1, 1, 1, 1,
+                                                 1, 1, 1, 1},
+                                                {1, 0, 0, 0,
+                                                 1, 0, 0, 0,
+                                                 1, 0, 0, 0,
+                                                 1, 0, 0, 0},
+                                                {1, 1, 1, 0,
+                                                 1, 1, 1, 0,
+                                                 1, 1, 1, 0,
+                                                 1, 1, 1, 0}};
 
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
@@ -93,7 +107,7 @@ Mat resized;
 Mat old;
 
 int diff = 0;
-int pixel[4][2][3];
+int pixel[CHAR_Y][CHAR_X][3];
 bool refresh = false;
 bool begin = true;
 
@@ -122,7 +136,7 @@ int curr_w, curr_h, orig_w = -1, orig_h = -1;
 
 int mindiff, diffbg, diffpixel;
 int min_fg, min_bg, max_fg, max_bg;
-int cases[9];
+int cases[DIFF_CASES];
 int case_min = 0;
 
 bool bgsame = false, pixelsame = false;
@@ -130,6 +144,9 @@ bool bgsame = false, pixelsame = false;
 int prevpixelbg[3] = {1000, 1000, 1000};
 int pixelbg[3], pixelchar[3];
 int prevpixel[3] = {1000, 1000, 1000};
+
+int sx = 4, sy = 8;
+int skipy = sy/CHAR_Y, skipx = sx/CHAR_X;
 
 void terminateProgram([[maybe_unused]] int sig_num) {
     videostop = std::chrono::high_resolution_clock::now();
@@ -182,8 +199,8 @@ int main(int argc, char *argv[]) {
                 h = curr_h;
                 h -= 1;
                 msg_y = h;
-                h *= 4;
-                w *= 2;
+                h *= sy;
+                w *= sx;
                 im_w = frame.cols;
                 im_h = frame.rows;
                 scale_factor = std::min((double) w / (double) im_w, (double) h / (double) im_h);
@@ -201,7 +218,7 @@ int main(int argc, char *argv[]) {
                     printf("\u001b[?25l");
                     printf("terminal dimensions: (w %4d, h %4d)\n", curr_w, curr_h);
                     printf("frame dimensions:    (w %4d, h %4d)\n", im_w, im_h);
-                    printf("display dimensions:  (w %4d, h %4d)\n", small_dims[0], small_dims[1] / 2);
+                    printf("display dimensions:  (w %4d, h %4d)\n", small_dims[0], small_dims[1] / (sy/sx));
                     printf("scaling:             %f\n", scale_factor);
                     printf("frames per second:   %f\n", fps);
                     fflush(stdout);
@@ -260,27 +277,27 @@ int main(int argc, char *argv[]) {
 
             r = -1;
             c = -1;
-            Vec3b *row[4];
-            Vec3b *oldrow[4];
-            for (int ay = 0; ay < resized.rows / 4; ay++) {
-                for (int x = 0; x < resized.cols / 2; x++) {
-                    for (int i = 0; i < 4; i++) {
-                        row[i] = resized.ptr<Vec3b>(ay * 4 + i);
-                        oldrow[i] = old.ptr<Vec3b>(ay * 4 + i);
+            Vec3b *row[CHAR_Y];
+            Vec3b *oldrow[CHAR_Y];
+            for (int ay = 0; ay < resized.rows / sy; ay++) {
+                for (int x = 0; x < resized.cols / sx; x++) {
+                    for (int i = 0; i < CHAR_Y; i++) {
+                        row[i] = resized.ptr<Vec3b>(ay * sy + i*skipy);
+                        oldrow[i] = old.ptr<Vec3b>(ay * sy + i*skipy);
                     }
-                    for (int i = 0; i < 4; i++)
-                        for (int j = 0; j < 2; j++)
+                    for (int i = 0; i < CHAR_Y; i++)
+                        for (int j = 0; j < CHAR_X; j++)
                             for (int k = 0; k < 3; k++)
-                                pixel[i][j][k] = row[i][x * 2 + j][k];
+                                pixel[i][j][k] = row[i][x * sx + j*skipx][k];
 
                     diff = 0;
                     if (refresh) {
                         diff = 255;
                     } else {
-                        for (int i = 0; i < 4; i++)
-                            for (int j = 0; j < 2; j++)
+                        for (int i = 0; i < CHAR_Y; i++)
+                            for (int j = 0; j < CHAR_X; j++)
                                 for (int k = 0; k < 3; k++)
-                                    diff = std::max(diff, std::abs(oldrow[i][x * 2 + j][k] - pixel[i][j][k]));
+                                    diff = std::max(diff, std::abs(oldrow[i][x * sx + j*skipx][k] - pixel[i][j][k]));
                     }
 
                     if (diff >= diffthreshold) {
@@ -289,9 +306,9 @@ int main(int argc, char *argv[]) {
                         for (int k = 0; k < 3;k++) {
                             for (int case_it = 0;case_it < sizeof(cases)/sizeof(cases[0]);case_it++) {
                                 min_fg = 256; min_bg = 256; max_fg = 0; max_bg = 0;
-                                for (int i = 0; i < 4; i++)
-                                    for (int j = 0; j < 2; j++) {
-                                        if (pixelmap[case_it][i * 2 + j]) {
+                                for (int i = 0; i < CHAR_Y; i++)
+                                    for (int j = 0; j < CHAR_X; j++) {
+                                        if (pixelmap[case_it][i * CHAR_X + j]) {
                                             min_fg = std::min(min_fg, pixel[i][j][k]);
                                             max_fg = std::max(max_fg, pixel[i][j][k]);
                                         } else {
@@ -321,9 +338,9 @@ int main(int argc, char *argv[]) {
                         for (int k = 0; k < 3; k++) {
                             int bg_count = 0, fg_count = 0;
                             pixelchar[k] = 0; pixelbg[k] = 0;
-                            for (int i = 0; i < 4; i++)
-                                for (int j = 0; j < 2; j++) {
-                                    if (pixelmap[case_min][i * 2 + j]) {
+                            for (int i = 0; i < CHAR_Y; i++)
+                                for (int j = 0; j < CHAR_X; j++) {
+                                    if (pixelmap[case_min][i * CHAR_X + j]) {
                                         pixelchar[k] += pixel[i][j][k];
                                         fg_count++;
                                     } else {
@@ -349,12 +366,12 @@ int main(int argc, char *argv[]) {
                             for (int k = 0;k < 3;k++) prevpixel[k] = pixelchar[k];
 
                         for (int k = 0; k < 3; k++)
-                            for (int i = 0; i < 4; i++)
-                                for (int j = 0; j < 2; j++) {
-                                    if (pixelmap[case_min][i * 2 + j])
-                                        oldrow[i][x * 2 + j][k] = pixelchar[k];
+                            for (int i = 0; i < CHAR_Y; i++)
+                                for (int j = 0; j < CHAR_X; j++) {
+                                    if (pixelmap[case_min][i * CHAR_X + j])
+                                        oldrow[i][x * sx + j*skipx][k] = pixelchar[k];
                                     else
-                                        oldrow[i][x * 2 + j][k] = pixelbg[k];
+                                        oldrow[i][x * sx + j*skipx][k] = pixelbg[k];
                                 }
 
                         if (r != ay || c != x) {
