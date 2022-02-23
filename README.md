@@ -15,7 +15,7 @@ The threshold has to be an integer from 0 to 255, and defaults to 10. The thresh
 Built on Manjaro with this command:
 
 ```sh
-g++ src/main.cpp -O3 -o tvp `pkg-config --cflags --libs opencv4`
+g++ src/main.cpp -std=c++17 -O3 -o tvp `pkg-config --cflags --libs opencv4`
 ```
 
 Below is a preview of how it looks:
