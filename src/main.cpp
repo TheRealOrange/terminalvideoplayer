@@ -28,49 +28,49 @@ const char characters[DIFF_CASES][4] = {"\u2584", // bottom half block
                                         "\u258a"};
 
 const int pixelmap[DIFF_CASES][CHAR_Y * CHAR_X] = {{0, 0, 0, 0,
-                                                           0, 0, 0, 0,
-                                                           1, 1, 1, 1,
-                                                           1, 1, 1, 1},
+                                                    0, 0, 0, 0,
+                                                    1, 1, 1, 1,
+                                                    1, 1, 1, 1},
                                                    {0, 0, 1, 1,
-                                                           0, 0, 1, 1,
-                                                           0, 0, 1, 1,
-                                                           0, 0, 1, 1},
+                                                    0, 0, 1, 1,
+                                                    0, 0, 1, 1,
+                                                    0, 0, 1, 1},
                                                    {1, 1, 0, 0,
-                                                           1, 1, 0, 0,
-                                                           0, 0, 0, 0,
-                                                           0, 0, 0, 0},
+                                                    1, 1, 0, 0,
+                                                    0, 0, 0, 0,
+                                                    0, 0, 0, 0},
                                                    {0, 0, 1, 1,
-                                                           0, 0, 1, 1,
-                                                           0, 0, 0, 0,
-                                                           0, 0, 0, 0},
+                                                    0, 0, 1, 1,
+                                                    0, 0, 0, 0,
+                                                    0, 0, 0, 0},
                                                    {0, 0, 0, 0,
-                                                           0, 0, 0, 0,
-                                                           1, 1, 0, 0,
-                                                           1, 1, 0, 0},
+                                                    0, 0, 0, 0,
+                                                    1, 1, 0, 0,
+                                                    1, 1, 0, 0},
                                                    {0, 0, 0, 0,
-                                                           0, 0, 0, 0,
-                                                           0, 0, 1, 1,
-                                                           0, 0, 1, 1},
+                                                    0, 0, 0, 0,
+                                                    0, 0, 1, 1,
+                                                    0, 0, 1, 1},
                                                    {0, 0, 1, 1,
-                                                           0, 0, 1, 1,
-                                                           1, 1, 0, 0,
-                                                           1, 1, 0, 0},
+                                                    0, 0, 1, 1,
+                                                    1, 1, 0, 0,
+                                                    1, 1, 0, 0},
                                                    {0, 0, 0, 0,
-                                                           0, 0, 0, 0,
-                                                           0, 0, 0, 0,
-                                                           1, 1, 1, 1},
+                                                    0, 0, 0, 0,
+                                                    0, 0, 0, 0,
+                                                    1, 1, 1, 1},
                                                    {0, 0, 0, 0,
-                                                           1, 1, 1, 1,
-                                                           1, 1, 1, 1,
-                                                           1, 1, 1, 1},
+                                                    1, 1, 1, 1,
+                                                    1, 1, 1, 1,
+                                                    1, 1, 1, 1},
                                                    {1, 0, 0, 0,
-                                                           1, 0, 0, 0,
-                                                           1, 0, 0, 0,
-                                                           1, 0, 0, 0},
+                                                    1, 0, 0, 0,
+                                                    1, 0, 0, 0,
+                                                    1, 0, 0, 0},
                                                    {1, 1, 1, 0,
-                                                           1, 1, 1, 0,
-                                                           1, 1, 1, 0,
-                                                           1, 1, 1, 0}};
+                                                    1, 1, 1, 0,
+                                                    1, 1, 1, 0,
+                                                    1, 1, 1, 0}};
 
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
@@ -116,22 +116,6 @@ void get_terminal_size(int &width, int &height) {
 #endif
 }
 
-int w = -1, h = -1;
-int im_w, im_h;
-double scale_factor = 0.0;
-int small_dims[2];
-
-char *frame;
-char *old;
-bool alloc = false;
-
-int diff = 0;
-int pixel[CHAR_Y][CHAR_X][3];
-bool refresh = false;
-bool begin = true;
-
-int r, c;
-
 char printbuf[50000000];
 const char *shapechar;
 int count = 0, curr_frame = 0;;
@@ -151,22 +135,11 @@ long long total_printing_time = 0;
 
 int diffthreshold = 10;
 
-int curr_w, curr_h, orig_w = -1, orig_h = -1;
-
-int mindiff, diffbg, diffpixel;
-int min_fg, min_bg, max_fg, max_bg;
-int cases[DIFF_CASES];
-int case_min = 0;
-
-bool bgsame = false, pixelsame = false;
-
-int prevpixelbg[3] = {1000, 1000, 1000};
-int pixelbg[3], pixelchar[3];
-int prevpixel[3] = {1000, 1000, 1000};
-
-int sx = 4, sy = 8;
+int sx = CHAR_X, sy = CHAR_X*2;
 int skipy = sy / CHAR_Y, skipx = sx / CHAR_X;
 
+// function to intercept SIGINT such that we print the ANSI code to restore the cursor visibility
+// and also print some statistics about the video played
 void terminateProgram([[maybe_unused]] int sig_num) {
     videostop = std::chrono::steady_clock::now();
     long long total_video_time = (long long) std::chrono::duration_cast<std::chrono::microseconds>(
@@ -179,60 +152,119 @@ void terminateProgram([[maybe_unused]] int sig_num) {
 }
 
 int main(int argc, char *argv[]) {
+    // initialise time reference so its valid in the SIGINT handler
     videostart = std::chrono::steady_clock::now();
+
+    // bind the function to the SIGINT signal
     signal(SIGINT, terminateProgram);
+
+    // set a custom size printbuf, and also set buffering to line only so we can control when the
+    // buffer will be flushed
     setvbuf(stdout, printbuf, _IOLBF, sizeof(printbuf));
-    // Create a VideoCapture object and open the input file
-    // If the input is the web camera, pass 0 instead of the video file name
+
+    // check if number of arguments is correct
     if (argc <= 1 || strlen(argv[1]) <= 0) {
         printf("\u001b[0mplease provide the filename as the first input argument");
         fflush(stdout);
         return 0;
     }
+// apparently macos uses std::__fs::filesystem
 #if defined(__APPLE__)
     if (std::__fs::filesystem::exists(argv[1])) {
 #else
     if (std::filesystem::exists(argv[1])) {
 #endif
+        // if the diff threshold argument is specified, and is within range, use the specified diff
         if (argc > 2) diffthreshold = std::stoi(argv[2], nullptr, 10);
         diffthreshold = std::max(std::min(255, diffthreshold), 0);
+
+        // open the video file and create the decode object
         video cap(argv[1]);
-        // Check if camera opened successfully
+
+        // check if successfully opened
         if (!cap.isOpened()) {
             printf("\u001b[0mError opening video stream or file\n");
             fflush(stdout);
             return -1;
         }
 
+        // get video FPS and compute period of each frame
         fps = cap.get_fps();
         period = (int) (1000000.0 / fps);
+
+        // initialise the time reference for the frame time counter
         start = std::chrono::steady_clock::now();
+
+        // variables used for scaling to terminal size
+        int w = -1, h = -1;
+        int curr_w, curr_h, orig_w = -1, orig_h = -1;
+        int im_w, im_h;
+        double scale_factor = 0.0;
+        int small_dims[2];
+
+        // variables used for handling the image data
+        char *frame;
+        char *old;
+        bool alloc = false;
+
+        // variables used for pixel update
+        int diff = 0;
+        int pixel[CHAR_Y][CHAR_X][3];
+        bool refresh = false;
+        bool begin = true;
+
+        // variables used to see if ansi colour command needs to be reprinted
+        bool bgsame = false, pixelsame = false;
+
+        int prevpixelbg[3] = {1000, 1000, 1000};
+        int pixelbg[3], pixelchar[3];
+        int prevpixel[3] = {1000, 1000, 1000};
+
+        // variables used to keep track of cursor location
+        int r, c;
+
+        // variables used to select the pixel type to print
+        int mindiff, diffbg, diffpixel;
+        int min_fg, min_bg, max_fg, max_bg;
+        int cases[DIFF_CASES];
+        int case_min = 0;
+
         while (true) {
-            count++;
-            curr_frame++;
+            count++;      // count the actual number of frames printed
+            curr_frame++; // count the current frame we are on
 
             get_terminal_size(curr_w, curr_h);
+
+            // if the terminal size has changed, recompute scaling
             if (curr_w != orig_w || curr_h != orig_h) {
                 orig_w = curr_w;
                 orig_h = curr_h;
                 w = curr_w;
                 h = curr_h;
-                h -= 1;
+                h -= 1; // leave one line for the fps and other info to be printed
                 msg_y = h;
                 h *= sy;
                 w *= sx;
                 im_w = cap.get_width();
                 im_h = cap.get_height();
+
+                // get the scaling to fit the smallest dim
                 scale_factor = std::min((double) w / (double) im_w, (double) h / (double) im_h);
                 small_dims[0] = int((double) im_w * scale_factor);
                 small_dims[1] = int((double) im_h * scale_factor);
-                if (small_dims[0] == 0 || small_dims[1] == 0) {
+
+                // if the terminal size is invalid
+                if (small_dims[0] <= 0 || small_dims[1] <= 0) {
                     printf("\u001b[%d;%dHterminal dimensions is too small! (%d, %d)                                                                    \n",
                            msg_y, 0, curr_w, curr_h);
                     fflush(stdout);
                     exit(0);
                 }
+
+                // force all pixels to update in the next frame
                 refresh = true;
+
+                // if this is the beginning, print some video statistics
                 if (begin) {
                     begin = false;
                     printf("\u001b[?25l");
@@ -242,32 +274,46 @@ int main(int argc, char *argv[]) {
                     printf("scaling:             %f\n", scale_factor);
                     printf("frames per second:   %f\n", fps);
                     fflush(stdout);
+
+                    // wait one second so the info can be read
                     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+                    // set actual reference times
                     start = std::chrono::steady_clock::now();
                     videostart = std::chrono::steady_clock::now();
                 }
+
+                // free up old frame data if they were allocated
                 if (alloc) {
                     std::free(frame);
                     std::free(old);
                 }
+
+                // set the video resize dimensions
                 cap.setResize(small_dims[0], small_dims[1]);
+
+                // create new frame data buffers
                 frame = (char *) std::malloc(cap.get_dst_buf_size());
                 old = (char *) std::malloc(cap.get_dst_buf_size());
                 alloc = true;
 
                 memset(old, 0, sizeof(*old));
 
+                // set the entire screen to black
                 printf("\u001b[0;0H\u001b[48;2;0;0;0m");
                 for (int i = 0; i < curr_w * curr_h; i++) printf(" ");
             }
 
+            // get frame from video
             int ret = cap.get_frame(small_dims[0], small_dims[1], frame);
 
+            // compute time taken for the previous frame
             stop = std::chrono::steady_clock::now();
             elapsed = (int) std::chrono::duration_cast<std::chrono::microseconds>(stop - videostart).count();
             int frame_time = (int) std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
             start = std::chrono::steady_clock::now();
 
+            // compute the average fps, as well as the fps of the last 10 frames
             total_time = elapsed;
             avg_fps = (double) count * 1000000.0 / (double) total_time;
             frametimes.push(frame_time);
@@ -277,11 +323,13 @@ int main(int argc, char *argv[]) {
                 frametimes.pop();
             }
 
+            // if there is still time before the next frame, wait a bit
             if (curr_frame * period - elapsed > 0)
                 std::this_thread::sleep_until(
                         std::chrono::microseconds(curr_frame * period - elapsed - frame10_time / frametimes.size()) +
                         stop);
             else {
+                // if the next frame is overdue, skip the frame and wait till the earliest non-overdue frame
                 skip = (double) elapsed / (double) period - (double) curr_frame;
                 for (int i = 0; i < std::floor(skip); i++) ret = cap.get_frame(small_dims[0], small_dims[1], frame);
                 dropped += std::floor(skip);
@@ -290,9 +338,13 @@ int main(int argc, char *argv[]) {
                         std::chrono::microseconds(curr_frame * period - frame10_time / frametimes.size()) + videostart);
             }
 
+            // print the fps, avg fps, dropped frames, etc. at the bottom of the video
             printf("\u001b[%d;%dH\u001b[48;2;0;0;0;38;2;255;255;255m   fps:  %5.2f   |   avg_fps:  %5.2f   |   print:  %6.2fms   |   dropped:  %5d   |   curr_frame:  %5d                 ",
                    msg_y, 0, (double) frametimes.size() * 1000000.0 / frame10_time, avg_fps,
                    (double) printing_time / 1000.0, dropped, curr_frame);
+
+            // set the previous pixel bg colour and font colour to a large value to force the ansi colour command to be printed
+            // for the first pixel in each frame
             prevpixelbg[0] = 1000;
             prevpixelbg[1] = 1000;
             prevpixelbg[2] = 1000;
@@ -300,31 +352,43 @@ int main(int argc, char *argv[]) {
             prevpixel[1] = 1000;
             prevpixel[2] = 1000;
 
-            // If the frame is empty, break immediately
+            // if the video is over, break
+            if (cap.is_end_of_stream()) break;
+            // if the frame is empty, break immediately
             if (ret < 0) {
                 printf("\u001b[0mError reading video stream or file\n");
                 break;
             }
 
+            // force the first pixel to use the ansi cursor move command
             r = -1;
             c = -1;
+
+            // variables to store the pointer to the start of each row for easier reference
+            // each pixel uses CHAR_Y rows of the actual image
             char *row[CHAR_Y];
             char *oldrow[CHAR_Y];
+
             for (int ay = 0; ay < cap.get_height() / sy; ay++) {
+                // set the row pointers
+                for (int i = 0; i < CHAR_Y; i++) {
+                    row[i] = frame + (ay * sy + i * skipy) * 3 * cap.get_width();
+                    oldrow[i] = old + (ay * sy + i * skipy) * 3 * cap.get_width();
+                }
                 for (int x = 0; x < cap.get_width() / sx; x++) {
-                    for (int i = 0; i < CHAR_Y; i++) {
-                        row[i] = frame + (ay * sy + i * skipy) * 3 * cap.get_width();
-                        oldrow[i] = old + (ay * sy + i * skipy) * 3 * cap.get_width();
-                    }
+                    // get the colour values of the pixels of the current character
                     for (int i = 0; i < CHAR_Y; i++)
                         for (int j = 0; j < CHAR_X; j++)
                             for (int k = 0; k < 3; k++)
                                 pixel[i][j][k] = (unsigned char) (*(row[i] + (x * sx + j * skipx) * 3 + k));
 
                     diff = 0;
+                    // if a refresh is necessary, set the diff to the max diff
                     if (refresh) {
                         diff = 255;
                     } else {
+                        // otherwise, find the max difference in RGB values between the actual
+                        // video frame and what is on screen for each pixel that makes up the character
                         for (int i = 0; i < CHAR_Y; i++)
                             for (int j = 0; j < CHAR_X; j++)
                                 for (int k = 0; k < 3; k++)
@@ -333,15 +397,22 @@ int main(int argc, char *argv[]) {
                                             pixel[i][j][k]));
                     }
 
+                    // if the difference exceeds the set threshold, reprint the entire character
                     if (diff >= diffthreshold) {
                         for (int &case_it: cases) case_it = 0;
 
+                        // calculate for each unicode character, the max error between what
+                        // will be printed on screen and the actual video pixel if the character were used
                         for (int k = 0; k < 3; k++) {
                             for (int case_it = 0; case_it < sizeof(cases) / sizeof(cases[0]); case_it++) {
                                 min_fg = 256;
                                 min_bg = 256;
                                 max_fg = 0;
                                 max_bg = 0;
+                                // for every character, there is a foreground colour and background colour
+                                // so we just check for the max and the min of all the values for pixels which
+                                // belong to the foreground and background regions respectively
+                                // the diff between the max and the min is the max error
                                 for (int i = 0; i < CHAR_Y; i++)
                                     for (int j = 0; j < CHAR_X; j++) {
                                         if (pixelmap[case_it][i * CHAR_X + j]) {
@@ -356,6 +427,7 @@ int main(int argc, char *argv[]) {
                             }
                         }
 
+                        // choose the unicode char to print which minimises the diff
                         mindiff = 256;
                         case_min = 0;
                         for (int case_it = 0; case_it < sizeof(cases) / sizeof(cases[0]); case_it++) {
@@ -371,6 +443,9 @@ int main(int argc, char *argv[]) {
                         bgsame = false;
                         pixelsame = false;
 
+                        // based on the unicode character selected, find the avg colour of the pixels
+                        // in the foreground region and background region
+                        // the avg colour will be used as the colour to be printed
                         for (int k = 0; k < 3; k++) {
                             int bg_count = 0, fg_count = 0;
                             pixelchar[k] = 0;
@@ -387,10 +462,19 @@ int main(int argc, char *argv[]) {
                                 }
                             pixelchar[k] /= fg_count;
                             pixelbg[k] /= bg_count;
+
+                            // find the max diff between the foreground and background colours
+                            // of the previously printed character
                             diffbg = std::max(diffbg, std::abs(pixelbg[k] - prevpixelbg[k]));
                             diffpixel = std::max(diffpixel, std::abs(pixelchar[k] - prevpixel[k]));
                         }
 
+                        // if the foreground or background colours are sufficiently similar,
+                        // we don't need to print the ansi command again
+
+                        // but if we skip printing the ansi command to change colour,
+                        // we have to remember to keep track of the actual colour of this character
+                        // on screen, which will be the colour of previous one
                         if (diffbg < CHANGE_THRESHOLD) {
                             for (int k = 0; k < 3; k++) pixelbg[k] = prevpixelbg[k];
                             bgsame = true;
@@ -402,6 +486,7 @@ int main(int argc, char *argv[]) {
                         } else
                             for (int k = 0; k < 3; k++) prevpixel[k] = pixelchar[k];
 
+                        // store the actual colour of the character's pixels in a buffer to check diff next time
                         for (int k = 0; k < 3; k++)
                             for (int i = 0; i < CHAR_Y; i++)
                                 for (int j = 0; j < CHAR_X; j++) {
@@ -411,10 +496,13 @@ int main(int argc, char *argv[]) {
                                         *(oldrow[i] + (x * sx + j * skipx) * 3 + k) = (char) pixelbg[k];
                                 }
 
+                        // if the cursor is already in the right position, do not print the ansi move cursor command
                         if (r != ay || c != x) {
                             printf("\u001b[%d;%dH", ay, x);
                         }
 
+                        // prints background and foreground colour change command, or either of them, or none
+                        // depending on the previously computed difference
                         if (!bgsame && !pixelsame)
                             printf("\u001b[48;2;%d;%d;%d;38;2;%d;%d;%dm%s", pixelbg[2], pixelbg[1], pixelbg[0],
                                    pixelchar[2], pixelchar[1], pixelchar[0], shapechar);
@@ -425,6 +513,7 @@ int main(int argc, char *argv[]) {
                         else
                             printf("%s", shapechar);
 
+                        // advance the cursor to keep track of where it is
                         r = ay;
                         c = x + 1;
                         if (c == curr_w) {
@@ -437,6 +526,7 @@ int main(int argc, char *argv[]) {
             }
             refresh = false;
             printtime = std::chrono::steady_clock::now();
+            // flush the print buffer
             fflush(stdout);
 
             printing_time = (int) std::chrono::duration_cast<std::chrono::microseconds>(

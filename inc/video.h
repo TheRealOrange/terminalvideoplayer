@@ -26,6 +26,7 @@ public:
     [[nodiscard]] int get_width() const;
     [[nodiscard]] int get_height() const;
     [[nodiscard]] int get_dst_buf_size() const;
+    [[nodiscard]] bool is_end_of_stream() const;
     int get_frame(int dst_w, int dst_h, const char* dst_frame);
 
 private:

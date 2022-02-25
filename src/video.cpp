@@ -113,9 +113,9 @@ int video::get_frame(int dst_w, int dst_h, const char* dst_frame) {
     if (end_of_stream_enc) return -1;
 
     sws_scale(swsctx, decframe->data, decframe->linesize, 0, decframe->height, frame->data, frame->linesize);
-    //char *it = (char *)dst_frame;
+
     av_image_copy_to_buffer((uint8_t *) dst_frame, get_dst_buf_size(), frame->data, frame->linesize, dst_pix_fmt, dst_width, dst_height, 1);
-    //printf("copy %p\n", dst_frame);
+
     return 0;
 }
 
@@ -135,7 +135,6 @@ void video::setResize(int w, int h) {
 
     if (alloc) av_freep(&frame->data[0]);
     av_image_alloc(frame->data, frame->linesize, dst_width, dst_height, dst_pix_fmt, 16);
-    printf("after av alloc %p\n", frame->data);
     alloc = true;
 }
 
@@ -148,4 +147,8 @@ video::~video() {
 
 int video::get_dst_buf_size() const {
     return dst_height*dst_width*3+50;
+}
+
+bool video::is_end_of_stream() const {
+    return end_of_stream_enc;
 }
