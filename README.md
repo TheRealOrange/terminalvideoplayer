@@ -10,12 +10,12 @@ Mileage may vary depending on how fast your terminal is. In my testing, I've fou
 .\tvp filename [threshold] 
 ```
 
-The threshold has to be an integer from 0 to 255, and defaults to 10. The threshold affects how much the colour of a certain pixel has to change before it will be redrawn. A lower threshold results in more redraws in most cases, and leads to choppy video. Unfortunately I can't be bothered to rewrite this to decode video using FFmpeg so you'll have to build it with OpenCV.
+The threshold has to be an integer from 0 to 255, and defaults to 10. The threshold affects how much the colour of a certain pixel has to change before it will be redrawn. A lower threshold results in more redraws in most cases, and leads to choppy video. It relies on [ffmpeg](https://www.ffmpeg.org/) in order to decode the video input.
 
 Built on Manjaro with this command:
 
 ```sh
-g++ src/main.cpp -std=c++17 -O3 -o tvp `pkg-config --cflags --libs opencv4`
+g++ src/main.cpp src/video.cpp -Iinc/ -std=c++17 -O3 -o tvp -lavformat -lavcodec -lavutil -lswscale
 ```
 
 Below is a preview of how it looks:

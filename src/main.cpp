@@ -1,4 +1,3 @@
-#include <opencv2/opencv.hpp>
 #include <cstring>
 #include <string>
 #include <chrono>
@@ -7,6 +6,8 @@
 #include <queue>
 #include <csignal>
 #include <cstdlib>
+
+#include "video.h"
 
 #define CHANGE_THRESHOLD 3
 
@@ -22,54 +23,54 @@ const char characters[DIFF_CASES][4] = {"\u2584", // bottom half block
                                         "\u2597", // bottom right quarter
                                         "\u259e", // diagonal
                                         "\u2582", // lower quarter block
-                                        "\u2586",
+                                        "\u2586", // lower 3 quarters block
                                         "\u258e",
-                                        "\u258a"};// lower 3 quarters block
+                                        "\u258a"};
 
-const int pixelmap[DIFF_CASES][CHAR_Y*CHAR_X] = {{0, 0, 0, 0,
-                                                         0, 0, 0, 0,
-                                                         1, 1, 1, 1,
-                                                         1, 1, 1, 1},
-                                                 {0, 0, 1, 1,
-                                                         0, 0, 1, 1,
-                                                         0, 0, 1, 1,
-                                                         0, 0, 1, 1},
-                                                 {1, 1, 0, 0,
-                                                         1, 1, 0, 0,
-                                                         0, 0, 0, 0,
-                                                         0, 0, 0, 0},
-                                                 {0, 0, 1, 1,
-                                                         0, 0, 1, 1,
-                                                         0, 0, 0, 0,
-                                                         0, 0, 0, 0},
-                                                 {0, 0, 0, 0,
-                                                         0, 0, 0, 0,
-                                                         1, 1, 0, 0,
-                                                         1, 1, 0, 0},
-                                                 {0, 0, 0, 0,
-                                                         0, 0, 0, 0,
-                                                         0, 0, 1, 1,
-                                                         0, 0, 1, 1},
-                                                 {0, 0, 1, 1,
-                                                         0, 0, 1, 1,
-                                                         1, 1, 0, 0,
-                                                         1, 1, 0, 0},
-                                                 {0, 0, 0, 0,
-                                                         0, 0, 0, 0,
-                                                         0, 0, 0, 0,
-                                                         1, 1, 1, 1},
-                                                 {0, 0, 0, 0,
-                                                         1, 1, 1, 1,
-                                                         1, 1, 1, 1,
-                                                         1, 1, 1, 1},
-                                                 {1, 0, 0, 0,
-                                                         1, 0, 0, 0,
-                                                         1, 0, 0, 0,
-                                                         1, 0, 0, 0},
-                                                 {1, 1, 1, 0,
-                                                         1, 1, 1, 0,
-                                                         1, 1, 1, 0,
-                                                         1, 1, 1, 0}};
+const int pixelmap[DIFF_CASES][CHAR_Y * CHAR_X] = {{0, 0, 0, 0,
+                                                           0, 0, 0, 0,
+                                                           1, 1, 1, 1,
+                                                           1, 1, 1, 1},
+                                                   {0, 0, 1, 1,
+                                                           0, 0, 1, 1,
+                                                           0, 0, 1, 1,
+                                                           0, 0, 1, 1},
+                                                   {1, 1, 0, 0,
+                                                           1, 1, 0, 0,
+                                                           0, 0, 0, 0,
+                                                           0, 0, 0, 0},
+                                                   {0, 0, 1, 1,
+                                                           0, 0, 1, 1,
+                                                           0, 0, 0, 0,
+                                                           0, 0, 0, 0},
+                                                   {0, 0, 0, 0,
+                                                           0, 0, 0, 0,
+                                                           1, 1, 0, 0,
+                                                           1, 1, 0, 0},
+                                                   {0, 0, 0, 0,
+                                                           0, 0, 0, 0,
+                                                           0, 0, 1, 1,
+                                                           0, 0, 1, 1},
+                                                   {0, 0, 1, 1,
+                                                           0, 0, 1, 1,
+                                                           1, 1, 0, 0,
+                                                           1, 1, 0, 0},
+                                                   {0, 0, 0, 0,
+                                                           0, 0, 0, 0,
+                                                           0, 0, 0, 0,
+                                                           1, 1, 1, 1},
+                                                   {0, 0, 0, 0,
+                                                           1, 1, 1, 1,
+                                                           1, 1, 1, 1,
+                                                           1, 1, 1, 1},
+                                                   {1, 0, 0, 0,
+                                                           1, 0, 0, 0,
+                                                           1, 0, 0, 0,
+                                                           1, 0, 0, 0},
+                                                   {1, 1, 1, 0,
+                                                           1, 1, 1, 0,
+                                                           1, 1, 1, 0,
+                                                           1, 1, 1, 0}};
 
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
@@ -83,10 +84,9 @@ const int pixelmap[DIFF_CASES][CHAR_Y*CHAR_X] = {{0, 0, 0, 0,
 
 #endif // Windows/Linux
 
-using namespace cv;
-
 void get_terminal_size(int &width, int &height) {
-    width = -1; height = -1;
+    width = -1;
+    height = -1;
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
     CONSOLE_SCREEN_BUFFER_INFO csbi;
     GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
@@ -121,9 +121,9 @@ int im_w, im_h;
 double scale_factor = 0.0;
 int small_dims[2];
 
-Mat frame;
-Mat resized;
-Mat old;
+char *frame;
+char *old;
+bool alloc = false;
 
 int diff = 0;
 int pixel[CHAR_Y][CHAR_X][3];
@@ -132,7 +132,7 @@ bool begin = true;
 
 int r, c;
 
-char printbuf[100000000];
+char printbuf[50000000];
 const char *shapechar;
 int count = 0, curr_frame = 0;;
 double fps;
@@ -165,7 +165,7 @@ int pixelbg[3], pixelchar[3];
 int prevpixel[3] = {1000, 1000, 1000};
 
 int sx = 4, sy = 8;
-int skipy = sy/CHAR_Y, skipx = sx/CHAR_X;
+int skipy = sy / CHAR_Y, skipx = sx / CHAR_X;
 
 void terminateProgram([[maybe_unused]] int sig_num) {
     videostop = std::chrono::steady_clock::now();
@@ -196,7 +196,7 @@ int main(int argc, char *argv[]) {
 #endif
         if (argc > 2) diffthreshold = std::stoi(argv[2], nullptr, 10);
         diffthreshold = std::max(std::min(255, diffthreshold), 0);
-        VideoCapture cap(argv[1]);
+        video cap(argv[1]);
         // Check if camera opened successfully
         if (!cap.isOpened()) {
             printf("\u001b[0mError opening video stream or file\n");
@@ -204,14 +204,12 @@ int main(int argc, char *argv[]) {
             return -1;
         }
 
-        fps = cap.get(CAP_PROP_FPS);
+        fps = cap.get_fps();
         period = (int) (1000000.0 / fps);
         start = std::chrono::steady_clock::now();
         while (true) {
             count++;
             curr_frame++;
-            // Capture frame-by-frame
-            cap >> frame;
 
             get_terminal_size(curr_w, curr_h);
             if (curr_w != orig_w || curr_h != orig_h) {
@@ -223,8 +221,8 @@ int main(int argc, char *argv[]) {
                 msg_y = h;
                 h *= sy;
                 w *= sx;
-                im_w = frame.cols;
-                im_h = frame.rows;
+                im_w = cap.get_width();
+                im_h = cap.get_height();
                 scale_factor = std::min((double) w / (double) im_w, (double) h / (double) im_h);
                 small_dims[0] = int((double) im_w * scale_factor);
                 small_dims[1] = int((double) im_h * scale_factor);
@@ -240,7 +238,7 @@ int main(int argc, char *argv[]) {
                     printf("\u001b[?25l");
                     printf("terminal dimensions: (w %4d, h %4d)\n", curr_w, curr_h);
                     printf("frame dimensions:    (w %4d, h %4d)\n", im_w, im_h);
-                    printf("display dimensions:  (w %4d, h %4d)\n", small_dims[0], small_dims[1] / (sy/sx));
+                    printf("display dimensions:  (w %4d, h %4d)\n", small_dims[0], small_dims[1] / (sy / sx));
                     printf("scaling:             %f\n", scale_factor);
                     printf("frames per second:   %f\n", fps);
                     fflush(stdout);
@@ -248,14 +246,26 @@ int main(int argc, char *argv[]) {
                     start = std::chrono::steady_clock::now();
                     videostart = std::chrono::steady_clock::now();
                 }
+                if (alloc) {
+                    std::free(frame);
+                    std::free(old);
+                }
+                cap.setResize(small_dims[0], small_dims[1]);
+                frame = (char *) std::malloc(cap.get_dst_buf_size());
+                old = (char *) std::malloc(cap.get_dst_buf_size());
+                alloc = true;
+
+                memset(old, 0, sizeof(*old));
+
                 printf("\u001b[0;0H\u001b[48;2;0;0;0m");
                 for (int i = 0; i < curr_w * curr_h; i++) printf(" ");
             }
 
+            int ret = cap.get_frame(small_dims[0], small_dims[1], frame);
+
             stop = std::chrono::steady_clock::now();
-            elapsed = (int)std::chrono::duration_cast<std::chrono::microseconds>(stop - videostart).count();
-            int frame_time = (int)std::chrono::duration_cast<std::chrono::microseconds>(
-                    stop - start).count();
+            elapsed = (int) std::chrono::duration_cast<std::chrono::microseconds>(stop - videostart).count();
+            int frame_time = (int) std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
             start = std::chrono::steady_clock::now();
 
             total_time = elapsed;
@@ -268,13 +278,16 @@ int main(int argc, char *argv[]) {
             }
 
             if (curr_frame * period - elapsed > 0)
-                std::this_thread::sleep_until(std::chrono::microseconds(curr_frame * period - elapsed - frame10_time/frametimes.size())+stop);
+                std::this_thread::sleep_until(
+                        std::chrono::microseconds(curr_frame * period - elapsed - frame10_time / frametimes.size()) +
+                        stop);
             else {
                 skip = (double) elapsed / (double) period - (double) curr_frame;
-                for (int i = 0; i < std::floor(skip); i++) cap >> frame;
+                for (int i = 0; i < std::floor(skip); i++) ret = cap.get_frame(small_dims[0], small_dims[1], frame);
                 dropped += std::floor(skip);
                 curr_frame += std::floor(skip);
-                std::this_thread::sleep_until(std::chrono::microseconds(curr_frame * period - frame10_time/frametimes.size()) + videostart);
+                std::this_thread::sleep_until(
+                        std::chrono::microseconds(curr_frame * period - frame10_time / frametimes.size()) + videostart);
             }
 
             printf("\u001b[%d;%dH\u001b[48;2;0;0;0;38;2;255;255;255m   fps:  %5.2f   |   avg_fps:  %5.2f   |   print:  %6.2fms   |   dropped:  %5d   |   curr_frame:  %5d                 ",
@@ -288,29 +301,25 @@ int main(int argc, char *argv[]) {
             prevpixel[2] = 1000;
 
             // If the frame is empty, break immediately
-            if (frame.empty()) {
+            if (ret < 0) {
                 printf("\u001b[0mError reading video stream or file\n");
                 break;
             }
 
-            resize(frame, resized, Size(small_dims[0], small_dims[1]), INTER_LINEAR);
-
-            if (refresh) old = resized.clone();
-
             r = -1;
             c = -1;
-            Vec3b *row[CHAR_Y];
-            Vec3b *oldrow[CHAR_Y];
-            for (int ay = 0; ay < resized.rows / sy; ay++) {
-                for (int x = 0; x < resized.cols / sx; x++) {
+            char *row[CHAR_Y];
+            char *oldrow[CHAR_Y];
+            for (int ay = 0; ay < cap.get_height() / sy; ay++) {
+                for (int x = 0; x < cap.get_width() / sx; x++) {
                     for (int i = 0; i < CHAR_Y; i++) {
-                        row[i] = resized.ptr<Vec3b>(ay * sy + i*skipy);
-                        oldrow[i] = old.ptr<Vec3b>(ay * sy + i*skipy);
+                        row[i] = frame + (ay * sy + i * skipy) * 3 * cap.get_width();
+                        oldrow[i] = old + (ay * sy + i * skipy) * 3 * cap.get_width();
                     }
                     for (int i = 0; i < CHAR_Y; i++)
                         for (int j = 0; j < CHAR_X; j++)
                             for (int k = 0; k < 3; k++)
-                                pixel[i][j][k] = row[i][x * sx + j*skipx][k];
+                                pixel[i][j][k] = (unsigned char) (*(row[i] + (x * sx + j * skipx) * 3 + k));
 
                     diff = 0;
                     if (refresh) {
@@ -319,15 +328,20 @@ int main(int argc, char *argv[]) {
                         for (int i = 0; i < CHAR_Y; i++)
                             for (int j = 0; j < CHAR_X; j++)
                                 for (int k = 0; k < 3; k++)
-                                    diff = std::max(diff, std::abs(oldrow[i][x * sx + j*skipx][k] - pixel[i][j][k]));
+                                    diff = std::max(diff, std::abs(
+                                            (unsigned char) (*(oldrow[i] + (x * sx + j * skipx) * 3 + k)) -
+                                            pixel[i][j][k]));
                     }
 
                     if (diff >= diffthreshold) {
-                        for (int & case_it : cases) case_it = 0;
+                        for (int &case_it: cases) case_it = 0;
 
-                        for (int k = 0; k < 3;k++) {
-                            for (int case_it = 0;case_it < sizeof(cases)/sizeof(cases[0]);case_it++) {
-                                min_fg = 256; min_bg = 256; max_fg = 0; max_bg = 0;
+                        for (int k = 0; k < 3; k++) {
+                            for (int case_it = 0; case_it < sizeof(cases) / sizeof(cases[0]); case_it++) {
+                                min_fg = 256;
+                                min_bg = 256;
+                                max_fg = 0;
+                                max_bg = 0;
                                 for (int i = 0; i < CHAR_Y; i++)
                                     for (int j = 0; j < CHAR_X; j++) {
                                         if (pixelmap[case_it][i * CHAR_X + j]) {
@@ -344,7 +358,7 @@ int main(int argc, char *argv[]) {
 
                         mindiff = 256;
                         case_min = 0;
-                        for (int case_it = 0;case_it < sizeof(cases)/sizeof(cases[0]);case_it++) {
+                        for (int case_it = 0; case_it < sizeof(cases) / sizeof(cases[0]); case_it++) {
                             if (cases[case_it] < mindiff) {
                                 case_min = case_it;
                                 mindiff = cases[case_it];
@@ -359,7 +373,8 @@ int main(int argc, char *argv[]) {
 
                         for (int k = 0; k < 3; k++) {
                             int bg_count = 0, fg_count = 0;
-                            pixelchar[k] = 0; pixelbg[k] = 0;
+                            pixelchar[k] = 0;
+                            pixelbg[k] = 0;
                             for (int i = 0; i < CHAR_Y; i++)
                                 for (int j = 0; j < CHAR_X; j++) {
                                     if (pixelmap[case_min][i * CHAR_X + j]) {
@@ -377,23 +392,23 @@ int main(int argc, char *argv[]) {
                         }
 
                         if (diffbg < CHANGE_THRESHOLD) {
-                            for (int k = 0;k < 3;k++) pixelbg[k] = prevpixelbg[k];
+                            for (int k = 0; k < 3; k++) pixelbg[k] = prevpixelbg[k];
                             bgsame = true;
                         } else
-                            for (int k = 0;k < 3;k++) prevpixelbg[k] = pixelbg[k];
+                            for (int k = 0; k < 3; k++) prevpixelbg[k] = pixelbg[k];
                         if (diffpixel < CHANGE_THRESHOLD) {
-                            for (int k = 0;k < 3;k++) pixelchar[k] = prevpixel[k];
+                            for (int k = 0; k < 3; k++) pixelchar[k] = prevpixel[k];
                             pixelsame = true;
                         } else
-                            for (int k = 0;k < 3;k++) prevpixel[k] = pixelchar[k];
+                            for (int k = 0; k < 3; k++) prevpixel[k] = pixelchar[k];
 
                         for (int k = 0; k < 3; k++)
                             for (int i = 0; i < CHAR_Y; i++)
                                 for (int j = 0; j < CHAR_X; j++) {
                                     if (pixelmap[case_min][i * CHAR_X + j])
-                                        oldrow[i][x * sx + j*skipx][k] = pixelchar[k];
+                                        *(oldrow[i] + (x * sx + j * skipx) * 3 + k) = (char) pixelchar[k];
                                     else
-                                        oldrow[i][x * sx + j*skipx][k] = pixelbg[k];
+                                        *(oldrow[i] + (x * sx + j * skipx) * 3 + k) = (char) pixelbg[k];
                                 }
 
                         if (r != ay || c != x) {
@@ -424,12 +439,10 @@ int main(int argc, char *argv[]) {
             printtime = std::chrono::steady_clock::now();
             fflush(stdout);
 
-            printing_time = (int) std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - printtime).count();
+            printing_time = (int) std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::steady_clock::now() - printtime).count();
             total_printing_time += printing_time;
         }
-
-        // When everything done, release the video capture object
-        cap.release();
     } else {
         printf("\u001b[0mfile not found\n");
         fflush(stdout);
