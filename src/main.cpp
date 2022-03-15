@@ -24,8 +24,8 @@ const char characters[DIFF_CASES][4] = {"\u2584", // bottom half block
                                         "\u259e", // diagonal
                                         "\u2582", // lower quarter block
                                         "\u2586", // lower 3 quarters block
-                                        "\u258e",
-                                        "\u258a"};
+                                        "\u258e", // left quarter block
+                                        "\u258a"};// left 3 quarters block
 
 const int pixelmap[DIFF_CASES][CHAR_Y * CHAR_X] = {{0, 0, 0, 0,
                                                     0, 0, 0, 0,
