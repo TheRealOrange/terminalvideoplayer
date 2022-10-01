@@ -32,7 +32,7 @@ public:
 private:
     AVFormatContext* inctx = nullptr;
     AVCodecContext* codec;
-    AVCodec* vcodec = nullptr;
+    const AVCodec* vcodec = nullptr;
     AVStream* vstrm = nullptr;
     AVFrame* frame = nullptr;
     SwsContext* swsctx = nullptr;

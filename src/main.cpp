@@ -144,7 +144,7 @@ void terminateProgram([[maybe_unused]] int sig_num) {
     videostop = std::chrono::steady_clock::now();
     long long total_video_time = (long long) std::chrono::duration_cast<std::chrono::microseconds>(
             videostop - videostart).count();
-    printf("\u001b[0m\u001b[%d;%dHframes: %5d, dropped: %5d,  total time: %5.2fs,  printing time: %5.2fs                                                            \u001b[?25h",
+    printf("\x1B[0m\x1B[%d;%dHframes: %5d, dropped: %5d,  total time: %5.2fs,  printing time: %5.2fs                                                            \u001b[?25h",
            msg_y, 0, curr_frame, dropped, (double) total_video_time / 1000000.0,
            (double) total_printing_time / 1000000.0);
     fflush(stdout);
@@ -164,7 +164,7 @@ int main(int argc, char *argv[]) {
 
     // check if number of arguments is correct
     if (argc <= 1 || strlen(argv[1]) <= 0) {
-        printf("\u001b[0mplease provide the filename as the first input argument");
+        printf("\x1B[0mplease provide the filename as the first input argument");
         fflush(stdout);
         return 0;
     }
@@ -183,7 +183,7 @@ int main(int argc, char *argv[]) {
 
         // check if successfully opened
         if (!cap.isOpened()) {
-            printf("\u001b[0mError opening video stream or file\n");
+            printf("\x1B[0mError opening video stream or file\n");
             fflush(stdout);
             return -1;
         }
@@ -255,7 +255,7 @@ int main(int argc, char *argv[]) {
 
                 // if the terminal size is invalid
                 if (small_dims[0] <= 0 || small_dims[1] <= 0) {
-                    printf("\u001b[%d;%dHterminal dimensions is too small! (%d, %d)                                                                    \n",
+                    printf("\x1B[%d;%dHterminal dimensions is too small! (%d, %d)                                                                    \n",
                            msg_y, 0, curr_w, curr_h);
                     fflush(stdout);
                     exit(0);
@@ -267,7 +267,7 @@ int main(int argc, char *argv[]) {
                 // if this is the beginning, print some video statistics
                 if (begin) {
                     begin = false;
-                    printf("\u001b[?25l");
+                    printf("\x1B[?25l");
                     printf("terminal dimensions: (w %4d, h %4d)\n", curr_w, curr_h);
                     printf("frame dimensions:    (w %4d, h %4d)\n", im_w, im_h);
                     printf("display dimensions:  (w %4d, h %4d)\n", small_dims[0], small_dims[1] / (sy / sx));
@@ -300,7 +300,7 @@ int main(int argc, char *argv[]) {
                 memset(old, 0, sizeof(*old));
 
                 // set the entire screen to black
-                printf("\u001b[0;0H\u001b[48;2;0;0;0m");
+                printf("\x1B[0;0H\x1B[48;2;0;0;0m");
                 for (int i = 0; i < curr_w * curr_h; i++) printf(" ");
             }
 
@@ -339,7 +339,7 @@ int main(int argc, char *argv[]) {
             }
 
             // print the fps, avg fps, dropped frames, etc. at the bottom of the video
-            printf("\u001b[%d;%dH\u001b[48;2;0;0;0;38;2;255;255;255m   fps:  %5.2f   |   avg_fps:  %5.2f   |   print:  %6.2fms   |   dropped:  %5d   |   curr_frame:  %5d                 ",
+            printf("\x1B[%d;%dH\xB1[48;2;0;0;0;38;2;255;255;255m   fps:  %5.2f   |   avg_fps:  %5.2f   |   print:  %6.2fms   |   dropped:  %5d   |   curr_frame:  %5d                 ",
                    msg_y, 0, (double) frametimes.size() * 1000000.0 / frame10_time, avg_fps,
                    (double) printing_time / 1000.0, dropped, curr_frame);
 
@@ -356,7 +356,7 @@ int main(int argc, char *argv[]) {
             if (cap.is_end_of_stream()) break;
             // if the frame is empty, break immediately
             if (ret < 0) {
-                printf("\u001b[0mError reading video stream or file\n");
+                printf("\x1B[0mError reading video stream or file\n");
                 break;
             }
 
@@ -498,18 +498,18 @@ int main(int argc, char *argv[]) {
 
                         // if the cursor is already in the right position, do not print the ansi move cursor command
                         if (r != ay || c != x) {
-                            printf("\u001b[%d;%dH", ay, x);
+                            printf("\x1B[%d;%dH", ay, x);
                         }
 
                         // prints background and foreground colour change command, or either of them, or none
                         // depending on the previously computed difference
                         if (!bgsame && !pixelsame)
-                            printf("\u001b[48;2;%d;%d;%d;38;2;%d;%d;%dm%s", pixelbg[2], pixelbg[1], pixelbg[0],
+                            printf("\x1B[48;2;%d;%d;%d;38;2;%d;%d;%dm%s", pixelbg[2], pixelbg[1], pixelbg[0],
                                    pixelchar[2], pixelchar[1], pixelchar[0], shapechar);
                         else if (!bgsame)
-                            printf("\u001b[48;2;%d;%d;%dm%s", pixelbg[2], pixelbg[1], pixelbg[0], shapechar);
+                            printf("\x1B[48;2;%d;%d;%dm%s", pixelbg[2], pixelbg[1], pixelbg[0], shapechar);
                         else if (!pixelsame)
-                            printf("\u001b[38;2;%d;%d;%dm%s", pixelchar[2], pixelchar[1], pixelchar[0], shapechar);
+                            printf("\x1B[38;2;%d;%d;%dm%s", pixelchar[2], pixelchar[1], pixelchar[0], shapechar);
                         else
                             printf("%s", shapechar);
 
@@ -534,7 +534,7 @@ int main(int argc, char *argv[]) {
             total_printing_time += printing_time;
         }
     } else {
-        printf("\u001b[0mfile not found\n");
+        printf("\x1B[0mfile not found\n");
         fflush(stdout);
         exit(0);
     }
