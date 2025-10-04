@@ -9,7 +9,7 @@
 
 #include "video.h"
 
-#define CHANGE_THRESHOLD 3
+#define CHANGE_THRESHOLD 9
 #define DITHERING_DECAY 0.5f
 #define ATKINSON_DITHERING
 
@@ -150,6 +150,13 @@ void terminateProgram([[maybe_unused]] int sig_num) {
            (double) total_printing_time / 1000000.0);
     fflush(stdout);
     exit(0);
+}
+
+inline int perceptual_diff(int r1, int g1, int b1, int r2, int g2, int b2) {
+    int dr = r1 - r2;
+    int dg = g1 - g2;
+    int db = b1 - b2;
+    return static_cast<int>(sqrt(2*dr*dr + 4*dg*dg + 3*db*db));
 }
 
 int main(int argc, char *argv[]) {
@@ -462,14 +469,20 @@ int main(int argc, char *argv[]) {
                     if (refresh) {
                         diff = 255;
                     } else {
-                        // otherwise, find the max difference in RGB values between the actual
-                        // video frame and what is on screen for each pixel that makes up the character
+                        // otherwise, otherwise, calculate the perceptual weighted color differences
+                        // in the RGB values between the actual video frame and what is on screen
+                        // for each pixel that makes up the character
                         for (int i = 0; i < CHAR_Y; i++)
-                            for (int j = 0; j < CHAR_X; j++)
-                                for (int k = 0; k < 3; k++)
-                                    diff = std::max(diff, std::abs(
-                                            static_cast<unsigned char>(*(oldrow[i] + (x * sx + j * skipx) * 3 + k)) -
-                                            pixel[i][j][k]));
+                            for (int j = 0; j < CHAR_X; j++) {
+                                int old_b = static_cast<unsigned char>(*(oldrow[i] + (x * sx + j * skipx) * 3 + 0));
+                                int old_g = static_cast<unsigned char>(*(oldrow[i] + (x * sx + j * skipx) * 3 + 1));
+                                int old_r = static_cast<unsigned char>(*(oldrow[i] + (x * sx + j * skipx) * 3 + 2));
+
+                                diff = std::max(diff, perceptual_diff(
+                                    old_r, old_g, old_b,
+                                    pixel[i][j][2], pixel[i][j][1], pixel[i][j][0]
+                                ));
+                            }
                     }
 
                     // if the difference exceeds the set threshold, reprint the entire character
@@ -540,8 +553,14 @@ int main(int argc, char *argv[]) {
 
                             // find the max diff between the foreground and background colours
                             // of the previously printed character
-                            diffbg = std::max(diffbg, std::abs(pixelbg[k] - prevpixelbg[k]));
-                            diffpixel = std::max(diffpixel, std::abs(pixelchar[k] - prevpixel[k]));
+                            diffbg = perceptual_diff(
+                                prevpixelbg[2], prevpixelbg[1], prevpixelbg[0],
+                                pixelbg[2], pixelbg[1], pixelbg[0]
+                            );
+                            diffpixel = perceptual_diff(
+                                prevpixel[2], prevpixel[1], prevpixel[0],
+                                pixelchar[2], pixelchar[1], pixelchar[0]
+                            );
                         }
 
                         // if the foreground or background colours are sufficiently similar,
