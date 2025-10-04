@@ -6,12 +6,18 @@
 #define VIDPLAYER_VIDEO_H
 
 #include <cstring>
+#ifdef _WIN32
+    #include <SDL.h>
+#else
+    #include <SDL2/SDL.h>
+#endif
 
 extern "C" {
     #include <libavformat/avformat.h>
     #include <libavcodec/avcodec.h>
     #include <libavutil/imgutils.h>
     #include <libswscale/swscale.h>
+    #include <libswresample/swresample.h>
 }
 
 class video {
@@ -28,6 +34,11 @@ public:
     [[nodiscard]] int get_dst_buf_size() const;
     [[nodiscard]] bool is_end_of_stream() const;
     int get_frame(int dst_w, int dst_h, const char* dst_frame);
+
+    // audio methods
+    [[nodiscard]] bool has_audio() const;
+    int get_audio_sample_rate() const;
+    int get_audio_channels() const;
 
 private:
     AVFormatContext* inctx = nullptr;
@@ -53,6 +64,18 @@ private:
 
     const AVPixelFormat dst_pix_fmt = AV_PIX_FMT_BGR24;
     char errbuf[200]{};
+
+    // audio handling members
+    AVCodecContext* audio_codec = nullptr;
+    const AVCodec* acodec = nullptr;
+    AVStream* astrm = nullptr;
+    int astrm_idx = -1;
+    AVFrame* audio_frame = nullptr;
+    SwrContext* swr_ctx = nullptr;
+    bool audio_available = false;
+
+    friend void audio_callback(void* userdata, uint8_t* stream, int len);
+
 };
 
 
