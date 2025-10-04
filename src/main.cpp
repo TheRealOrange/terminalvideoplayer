@@ -145,7 +145,7 @@ void terminateProgram([[maybe_unused]] int sig_num) {
     long long total_video_time = (long long) std::chrono::duration_cast<std::chrono::microseconds>(
             videostop - videostart).count();
     printf("\x1B[0m\x1B[%d;%dHframes: %5d, dropped: %5d,  total time: %5.2fs,  printing time: %5.2fs                                                            \u001b[?25h",
-           msg_y, 0, curr_frame, dropped, (double) total_video_time / 1000000.0,
+           msg_y+1, 1, curr_frame, dropped, (double) total_video_time / 1000000.0,
            (double) total_printing_time / 1000000.0);
     fflush(stdout);
     exit(0);
@@ -256,7 +256,7 @@ int main(int argc, char *argv[]) {
                 // if the terminal size is invalid
                 if (small_dims[0] <= 0 || small_dims[1] <= 0) {
                     printf("\x1B[%d;%dHterminal dimensions is too small! (%d, %d)                                                                    \n",
-                           msg_y, 0, curr_w, curr_h);
+                           msg_y+1, 1, curr_w, curr_h);
                     fflush(stdout);
                     exit(0);
                 }
@@ -339,8 +339,8 @@ int main(int argc, char *argv[]) {
             }
 
             // print the fps, avg fps, dropped frames, etc. at the bottom of the video
-            printf("\x1B[%d;%dH\xB1[48;2;0;0;0;38;2;255;255;255m   fps:  %5.2f   |   avg_fps:  %5.2f   |   print:  %6.2fms   |   dropped:  %5d   |   curr_frame:  %5d                 ",
-                   msg_y, 0, (double) frametimes.size() * 1000000.0 / frame10_time, avg_fps,
+            printf("\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m   fps:  %5.2f   |   avg_fps:  %5.2f   |   print:  %6.2fms   |   dropped:  %5d   |   curr_frame:  %5d                 ",
+                   msg_y+1, 1, (double) frametimes.size() * 1000000.0 / frame10_time, avg_fps,
                    (double) printing_time / 1000.0, dropped, curr_frame);
 
             // set the previous pixel bg colour and font colour to a large value to force the ansi colour command to be printed
@@ -404,7 +404,7 @@ int main(int argc, char *argv[]) {
                         // calculate for each unicode character, the max error between what
                         // will be printed on screen and the actual video pixel if the character were used
                         for (int k = 0; k < 3; k++) {
-                            for (int case_it = 0; case_it < sizeof(cases) / sizeof(cases[0]); case_it++) {
+                            for (int case_it = 0; case_it < (int)(sizeof(cases) / sizeof(cases[0])); case_it++) {
                                 min_fg = 256;
                                 min_bg = 256;
                                 max_fg = 0;
@@ -430,7 +430,7 @@ int main(int argc, char *argv[]) {
                         // choose the unicode char to print which minimises the diff
                         mindiff = 256;
                         case_min = 0;
-                        for (int case_it = 0; case_it < sizeof(cases) / sizeof(cases[0]); case_it++) {
+                        for (int case_it = 0; case_it < (int)(sizeof(cases) / sizeof(cases[0])); case_it++) {
                             if (cases[case_it] < mindiff) {
                                 case_min = case_it;
                                 mindiff = cases[case_it];
@@ -498,7 +498,7 @@ int main(int argc, char *argv[]) {
 
                         // if the cursor is already in the right position, do not print the ansi move cursor command
                         if (r != ay || c != x) {
-                            printf("\x1B[%d;%dH", ay, x);
+                            printf("\x1B[%d;%dH", ay+1, x+1);
                         }
 
                         // prints background and foreground colour change command, or either of them, or none
