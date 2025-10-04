@@ -9,8 +9,8 @@
 
 #include "video.h"
 
-#define CHANGE_THRESHOLD 9
-#define DITHERING_DECAY 0.5f
+#define CHANGE_THRESHOLD 11
+#define DITHERING_DECAY 0.7f
 #define ATKINSON_DITHERING
 
 #define CHAR_Y 4
@@ -150,6 +150,24 @@ void terminateProgram([[maybe_unused]] int sig_num) {
            (double) total_printing_time / 1000000.0);
     fflush(stdout);
     exit(0);
+}
+
+// ai generated srgb to linear, original code DO NOT steal
+inline float srgb_to_linear(unsigned char c) {
+    float v = c / 255.0f;
+    if (v <= 0.04045f)
+        return v / 12.92f;
+    else
+        return powf((v + 0.055f) / 1.055f, 2.4f);
+}
+
+// ai generated linear to srgb, original code DO NOT steal
+inline unsigned char linear_to_srgb(float v) {
+    if (v <= 0.0031308f)
+        v = v * 12.92f;
+    else
+        v = 1.055f * powf(v, 1.0f/2.4f) - 0.055f;
+    return (unsigned char)(std::clamp(v * 255.0f, 0.0f, 255.0f));
 }
 
 inline int perceptual_diff(int r1, int g1, int b1, int r2, int g2, int b2) {
@@ -534,34 +552,38 @@ int main(int argc, char *argv[]) {
                         // based on the unicode character selected, find the avg colour of the pixels
                         // in the foreground region and background region
                         // the avg colour will be used as the colour to be printed
-                        for (int k = 0; k < 3; k++) {
-                            int bg_count = 0, fg_count = 0;
-                            pixelchar[k] = 0;
-                            pixelbg[k] = 0;
-                            for (int i = 0; i < CHAR_Y; i++)
-                                for (int j = 0; j < CHAR_X; j++) {
-                                    if (pixelmap[case_min][i * CHAR_X + j]) {
-                                        pixelchar[k] += pixel[i][j][k];
-                                        fg_count++;
-                                    } else {
-                                        pixelbg[k] += pixel[i][j][k];
-                                        bg_count++;
-                                    }
-                                }
-                            pixelchar[k] /= fg_count;
-                            pixelbg[k] /= bg_count;
+                        float linear_fg[3] = {0, 0, 0};
+                        float linear_bg[3] = {0, 0, 0};
+                        int bg_count = 0, fg_count = 0;
 
-                            // find the max diff between the foreground and background colours
-                            // of the previously printed character
-                            diffbg = perceptual_diff(
-                                prevpixelbg[2], prevpixelbg[1], prevpixelbg[0],
-                                pixelbg[2], pixelbg[1], pixelbg[0]
-                            );
-                            diffpixel = perceptual_diff(
-                                prevpixel[2], prevpixel[1], prevpixel[0],
-                                pixelchar[2], pixelchar[1], pixelchar[0]
-                            );
+                        for (int i = 0; i < CHAR_Y; i++)
+                            for (int j = 0; j < CHAR_X; j++) {
+                                if (pixelmap[case_min][i * CHAR_X + j]) {
+                                    for (int k = 0; k < 3; k++)
+                                        linear_fg[k] += srgb_to_linear(pixel[i][j][k]);
+                                    fg_count++;
+                                } else {
+                                    for (int k = 0; k < 3; k++)
+                                        linear_bg[k] += srgb_to_linear(pixel[i][j][k]);
+                                    bg_count++;
+                                }
+                            }
+
+                        for (int k = 0; k < 3; k++) {
+                            pixelchar[k] = linear_to_srgb(linear_fg[k] / fg_count);
+                            pixelbg[k] = linear_to_srgb(linear_bg[k] / bg_count);
                         }
+
+                        // find the max diff between the foreground and background colours
+                        // of the previously printed character
+                        diffbg = perceptual_diff(
+                            prevpixelbg[2], prevpixelbg[1], prevpixelbg[0],
+                            pixelbg[2], pixelbg[1], pixelbg[0]
+                        );
+                        diffpixel = perceptual_diff(
+                            prevpixel[2], prevpixel[1], prevpixel[0],
+                            pixelchar[2], pixelchar[1], pixelchar[0]
+                        );
 
                         // if the foreground or background colours are sufficiently similar,
                         // we don't need to print the ansi command again
