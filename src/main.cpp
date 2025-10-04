@@ -10,6 +10,7 @@
 #include "video.h"
 
 #define CHANGE_THRESHOLD 3
+#define DITHERING_DECAY 0.25f
 
 #define CHAR_Y 4
 #define CHAR_X 4
@@ -202,6 +203,10 @@ int main(int argc, char *argv[]) {
         char *old;
         bool alloc = false;
 
+        // error buffer to store color errors so we can keep track and
+        // diffuse color error to neighboring pixels
+        float *error_buffer;  // stores RGB error for next character
+
         // printing buffer
         char *print_buf;
         int print_buffer_size;
@@ -293,11 +298,16 @@ int main(int argc, char *argv[]) {
                     char* realloc_old = static_cast<char *>(std::realloc(old, cap.get_dst_buf_size()));
                     print_buffer_size = curr_w * curr_h * 60;
                     char* realloc_print_buf = static_cast<char *>(std::realloc(print_buf, print_buffer_size));
+                    float* realloc_error = static_cast<float*>(std::realloc(error_buffer, curr_w*curr_h*3*sizeof(float)));
 
-                    if (realloc_frame && realloc_old && realloc_print_buf) {
+                    if (realloc_frame && realloc_old && realloc_print_buf && realloc_error) {
                         frame = realloc_frame;
                         old = realloc_old;
                         print_buf = realloc_print_buf;
+                        error_buffer = realloc_error;
+
+                        // clear reallocated buffers
+                        memset(error_buffer, 0, curr_w * curr_h * 3 * sizeof(float));
                         memset(old, 0, cap.get_dst_buf_size());
                     } else {
                         // Free whatever succeeded before the failure
@@ -310,7 +320,10 @@ int main(int argc, char *argv[]) {
                         if (realloc_print_buf) std::free(realloc_print_buf);
                         else std::free(print_buf);
 
-                        fprintf(stderr, "Failed to reallocate buffers for terminal resize\n");
+                        if (realloc_error) std::free(realloc_error);
+                        else std::free(error_buffer);
+
+                        fprintf(stderr, "failed to reallocate buffers on terminal resize\n");
                         alloc = false;
                         break;
                     }
@@ -323,15 +336,20 @@ int main(int argc, char *argv[]) {
                     // and every single character needs a cursor move
                     print_buffer_size = curr_w * curr_h * 60;  // 60 bytes per char with safety margin
                     print_buf = static_cast<char *>(malloc(print_buffer_size));
+                    // allocate dithering error buffer
+                    error_buffer = static_cast<float*>(std::calloc(curr_w*curr_h*3,sizeof(float)));
 
-                    if (frame && old && print_buf) {
+                    if (frame && old && print_buf && error_buffer) {
                         alloc = true;
                     } else {
                         // clean up partial allocations
                         if (frame) std::free(frame);
                         if (old) std::free(old);
                         if (print_buf) std::free(print_buf);
+                        if (error_buffer) std::free(error_buffer);
+
                         alloc = false;
+                        fprintf(stderr, "failed to allocate buffers\n");
                         break;
                     }
                 }
@@ -352,6 +370,13 @@ int main(int argc, char *argv[]) {
 
             // get frame from video
             int ret = cap.get_frame(small_dims[0], small_dims[1], frame);
+
+            // decay error buffer to prevent temporal ghosting
+            if (error_buffer) {
+                for (int i = 0; i < curr_w * curr_h * 3; i++) {
+                    error_buffer[i] *= DITHERING_DECAY;
+                }
+            }
 
             // compute time taken for the previous frame
             stop = std::chrono::steady_clock::now();
@@ -423,8 +448,13 @@ int main(int argc, char *argv[]) {
                     // get the colour values of the pixels of the current character
                     for (int i = 0; i < CHAR_Y; i++)
                         for (int j = 0; j < CHAR_X; j++)
-                            for (int k = 0; k < 3; k++)
-                                pixel[i][j][k] = (unsigned char) (*(row[i] + (x * sx + j * skipx) * 3 + k));
+                            for (int k = 0; k < 3; k++) {
+                                pixel[i][j][k] = static_cast<unsigned char>(*(row[i] + (x * sx + j * skipx) * 3 + k));
+
+                                // apply error from previous character
+                                int err_idx = (ay * curr_w + x) * 3 + k;
+                                pixel[i][j][k] = std::clamp(pixel[i][j][k] + static_cast<int>(error_buffer[err_idx]),0, 255);
+                            }
 
                     diff = 0;
                     // if a refresh is necessary, set the diff to the max diff
@@ -540,6 +570,31 @@ int main(int argc, char *argv[]) {
                                         *(oldrow[i] + (x * sx + j * skipx) * 3 + k) = (char) pixelbg[k];
                                 }
 
+                        // diffuse color errors
+                        for (int k = 0; k < 3; k++) {
+                            float total_error = 0;
+                            for (int i = 0; i < CHAR_Y; i++) {
+                                for (int j = 0; j < CHAR_X; j++) {
+                                    int target = pixelmap[case_min][i * CHAR_X + j] ? pixelchar[k] : pixelbg[k];
+                                    total_error += static_cast<float>(pixel[i][j][k] - target);
+                                }
+                            }
+                            total_error /= (CHAR_Y * CHAR_X);
+
+                            // distribute error per channel
+                            int err_idx_right = (ay * curr_w + (x + 1)) * 3 + k;
+                            int err_idx_below = ((ay + 1) * curr_w + x) * 3 + k;
+                            int err_idx_diag = ((ay + 1) * curr_w + (x + 1)) * 3 + k;
+
+                            // floyd-steinberg
+                            if (x + 1 < curr_w)
+                                error_buffer[err_idx_right] += total_error * 0.4375f;  // 7/16 right
+                            if (ay + 1 < curr_h)
+                                error_buffer[err_idx_below] += total_error * 0.3125f;   // 5/16 below
+                            if (x + 1 < curr_w && ay + 1 < curr_h)
+                                error_buffer[err_idx_diag] += total_error * 0.25f;      // 4/16 diagonal
+                        }
+
                         // if the cursor is already in the right position, do not print the ansi move cursor command
                         // the ansi position command is one indexed
                         if (r != ay || c != x) {
@@ -606,6 +661,7 @@ int main(int argc, char *argv[]) {
             std::free(frame);
             std::free(old);
             std::free(print_buf);
+            std::free(error_buffer);
         }
     } else {
         printf("\x1B[0mfile not found\n");
