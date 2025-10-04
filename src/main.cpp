@@ -10,7 +10,8 @@
 #include "video.h"
 
 #define CHANGE_THRESHOLD 3
-#define DITHERING_DECAY 0.25f
+#define DITHERING_DECAY 0.5f
+#define ATKINSON_DITHERING
 
 #define CHAR_Y 4
 #define CHAR_X 4
@@ -586,13 +587,30 @@ int main(int argc, char *argv[]) {
                             int err_idx_below = ((ay + 1) * curr_w + x) * 3 + k;
                             int err_idx_diag = ((ay + 1) * curr_w + (x + 1)) * 3 + k;
 
-                            // floyd-steinberg
+#ifdef ATKINSON_DITHERING
+                            // atkinson dithering
+                            if (x + 1 < curr_w)
+                                error_buffer[err_idx_right] += total_error * 0.125f;
+                            if (x + 2 < curr_w)
+                                error_buffer[(ay * curr_w + (x + 2)) * 3 + k] += total_error * 0.125f;
+                            if (ay + 1 < curr_h) {
+                                error_buffer[err_idx_below] += total_error * 0.125f;
+                                if (x - 1 >= 0)
+                                    error_buffer[((ay + 1) * curr_w + (x - 1)) * 3 + k] += total_error * 0.125f;
+                                if (x + 1 < curr_w)
+                                    error_buffer[err_idx_diag] += total_error * 0.125f;
+                            }
+                            if (ay + 2 < curr_h)
+                                error_buffer[((ay + 2) * curr_w + x) * 3 + k] += total_error * 0.125f;
+#else
+                            // floyd-steinberg dithering
                             if (x + 1 < curr_w)
                                 error_buffer[err_idx_right] += total_error * 0.4375f;  // 7/16 right
                             if (ay + 1 < curr_h)
                                 error_buffer[err_idx_below] += total_error * 0.3125f;   // 5/16 below
                             if (x + 1 < curr_w && ay + 1 < curr_h)
                                 error_buffer[err_idx_diag] += total_error * 0.25f;      // 4/16 diagonal
+#endif
                         }
 
                         // if the cursor is already in the right position, do not print the ansi move cursor command
