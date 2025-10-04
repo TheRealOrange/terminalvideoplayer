@@ -4,10 +4,9 @@
 
 #include "video.h"
 
-video::video(char filename[], int w, int h) {
-    int ret;
+video::video(const char filename[], int w, int h) {
     errbuf[0] = '\0';
-    ret = avformat_open_input(&inctx, filename, nullptr, nullptr);
+    int ret = avformat_open_input(&inctx, filename, nullptr, nullptr);
     if (ret < 0) {
         av_make_error_string(errbuf, sizeof(errbuf), ret);
         fprintf(stderr, "fail to avformat_open_input(%s): %s\n", filename, errbuf);
@@ -64,7 +63,7 @@ video::video(char filename[], int w, int h) {
     opened = true;
 }
 
-double video::get_fps() {
+double video::get_fps() const {
     return av_q2d(vstrm->r_frame_rate);
 }
 
@@ -143,6 +142,9 @@ video::~video() {
     av_freep(&decframe->data);
     av_frame_free(&frame);
     av_frame_free(&decframe);
+    av_packet_free(&pkt);
+    avcodec_free_context(&codec);
+    avformat_close_input(&inctx);
 }
 
 int video::get_dst_buf_size() const {

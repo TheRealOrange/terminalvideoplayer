@@ -116,7 +116,6 @@ void get_terminal_size(int &width, int &height) {
 #endif
 }
 
-char printbuf[50000000];
 const char *shapechar;
 int count = 0, curr_frame = 0;;
 double fps;
@@ -158,10 +157,6 @@ int main(int argc, char *argv[]) {
     // bind the function to the SIGINT signal
     signal(SIGINT, terminateProgram);
 
-    // set a custom size printbuf, and also set buffering to line only so we can control when the
-    // buffer will be flushed
-    setvbuf(stdout, printbuf, _IOLBF, sizeof(printbuf));
-
     // check if number of arguments is correct
     if (argc <= 1 || strlen(argv[1]) <= 0) {
         printf("\x1B[0mplease provide the filename as the first input argument");
@@ -190,7 +185,7 @@ int main(int argc, char *argv[]) {
 
         // get video FPS and compute period of each frame
         fps = cap.get_fps();
-        period = (int) (1000000.0 / fps);
+        period = static_cast<int>(1000000.0 / fps);
 
         // initialise the time reference for the frame time counter
         start = std::chrono::steady_clock::now();
@@ -206,6 +201,12 @@ int main(int argc, char *argv[]) {
         char *frame;
         char *old;
         bool alloc = false;
+
+        // printing buffer
+        char *print_buf;
+        int print_buffer_size;
+        int written = 0;
+        int print_ret;
 
         // variables used for pixel update
         int diff = 0;
@@ -283,25 +284,70 @@ int main(int argc, char *argv[]) {
                     videostart = std::chrono::steady_clock::now();
                 }
 
-                // free up old frame data if they were allocated
-                if (alloc) {
-                    std::free(frame);
-                    std::free(old);
-                }
-
                 // set the video resize dimensions
                 cap.setResize(small_dims[0], small_dims[1]);
 
-                // create new frame data buffers
-                frame = (char *) std::malloc(cap.get_dst_buf_size());
-                old = (char *) std::malloc(cap.get_dst_buf_size());
-                alloc = true;
+                // reallocate up old frame data if they were allocated
+                if (alloc) {
+                    char* realloc_frame = static_cast<char *>(std::realloc(frame, cap.get_dst_buf_size()));
+                    char* realloc_old = static_cast<char *>(std::realloc(old, cap.get_dst_buf_size()));
+                    print_buffer_size = curr_w * curr_h * 60;
+                    char* realloc_print_buf = static_cast<char *>(std::realloc(print_buf, print_buffer_size));
 
-                memset(old, 0, sizeof(*old));
+                    if (realloc_frame && realloc_old && realloc_print_buf) {
+                        frame = realloc_frame;
+                        old = realloc_old;
+                        print_buf = realloc_print_buf;
+                        memset(old, 0, cap.get_dst_buf_size());
+                    } else {
+                        // Free whatever succeeded before the failure
+                        if (realloc_frame) std::free(realloc_frame);
+                        else std::free(frame);
+
+                        if (realloc_old) std::free(realloc_old);
+                        else std::free(old);
+
+                        if (realloc_print_buf) std::free(realloc_print_buf);
+                        else std::free(print_buf);
+
+                        fprintf(stderr, "Failed to reallocate buffers for terminal resize\n");
+                        alloc = false;
+                        break;
+                    }
+                } else {
+                    // otherwise create new frame buffers
+                    frame = static_cast<char *>(std::malloc(cap.get_dst_buf_size()));
+                    old = static_cast<char *>(std::calloc(cap.get_dst_buf_size(), sizeof(char)));
+                    // allocate print buffer
+                    // worst case: every single character update with color codes
+                    // and every single character needs a cursor move
+                    print_buffer_size = curr_w * curr_h * 60;  // 60 bytes per char with safety margin
+                    print_buf = static_cast<char *>(malloc(print_buffer_size));
+
+                    if (frame && old && print_buf) {
+                        alloc = true;
+                    } else {
+                        // clean up partial allocations
+                        if (frame) std::free(frame);
+                        if (old) std::free(old);
+                        if (print_buf) std::free(print_buf);
+                        alloc = false;
+                        break;
+                    }
+                }
 
                 // set the entire screen to black
-                printf("\x1B[0;0H\x1B[48;2;0;0;0m");
-                for (int i = 0; i < curr_w * curr_h; i++) printf(" ");
+                written = snprintf(print_buf, print_buffer_size,"\x1B[0;0H\x1B[48;2;0;0;0m");
+                if (written > 0 && written < print_buffer_size) {
+                    for (int i = 0; i < curr_w * curr_h; i++) {
+                        print_ret = snprintf(print_buf + written, print_buffer_size - written, " ");
+                        if (print_ret > 0 && print_ret < print_buffer_size - written) written += print_ret;
+                        else break;
+                    }
+                }
+
+                // one write call for frame
+                write(STDOUT_FILENO, print_buf, written);
             }
 
             // get frame from video
@@ -330,18 +376,13 @@ int main(int argc, char *argv[]) {
                         stop);
             else {
                 // if the next frame is overdue, skip the frame and wait till the earliest non-overdue frame
-                skip = (double) elapsed / (double) period - (double) curr_frame;
+                skip = static_cast<double>(elapsed) / static_cast<double>(period) - static_cast<double>(curr_frame);
                 for (int i = 0; i < std::floor(skip); i++) ret = cap.get_frame(small_dims[0], small_dims[1], frame);
                 dropped += std::floor(skip);
                 curr_frame += std::floor(skip);
                 std::this_thread::sleep_until(
                         std::chrono::microseconds(curr_frame * period - frame10_time / frametimes.size()) + videostart);
             }
-
-            // print the fps, avg fps, dropped frames, etc. at the bottom of the video
-            printf("\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m   fps:  %5.2f   |   avg_fps:  %5.2f   |   print:  %6.2fms   |   dropped:  %5d   |   curr_frame:  %5d                 ",
-                   msg_y+1, 1, (double) frametimes.size() * 1000000.0 / frame10_time, avg_fps,
-                   (double) printing_time / 1000.0, dropped, curr_frame);
 
             // set the previous pixel bg colour and font colour to a large value to force the ansi colour command to be printed
             // for the first pixel in each frame
@@ -369,6 +410,9 @@ int main(int argc, char *argv[]) {
             char *row[CHAR_Y];
             char *oldrow[CHAR_Y];
 
+            // reset snprintf buffer
+            written = 0;
+
             for (int ay = 0; ay < cap.get_height() / sy; ay++) {
                 // set the row pointers
                 for (int i = 0; i < CHAR_Y; i++) {
@@ -393,7 +437,7 @@ int main(int argc, char *argv[]) {
                             for (int j = 0; j < CHAR_X; j++)
                                 for (int k = 0; k < 3; k++)
                                     diff = std::max(diff, std::abs(
-                                            (unsigned char) (*(oldrow[i] + (x * sx + j * skipx) * 3 + k)) -
+                                            static_cast<unsigned char>(*(oldrow[i] + (x * sx + j * skipx) * 3 + k)) -
                                             pixel[i][j][k]));
                     }
 
@@ -430,7 +474,7 @@ int main(int argc, char *argv[]) {
                         // choose the unicode char to print which minimises the diff
                         mindiff = 256;
                         case_min = 0;
-                        for (int case_it = 0; case_it < (int)(sizeof(cases) / sizeof(cases[0])); case_it++) {
+                        for (int case_it = 0; case_it < static_cast<int>(std::size(cases)); case_it++) {
                             if (cases[case_it] < mindiff) {
                                 case_min = case_it;
                                 mindiff = cases[case_it];
@@ -497,21 +541,36 @@ int main(int argc, char *argv[]) {
                                 }
 
                         // if the cursor is already in the right position, do not print the ansi move cursor command
+                        // the ansi position command is one indexed
                         if (r != ay || c != x) {
-                            printf("\x1B[%d;%dH", ay+1, x+1);
+                            print_ret = snprintf(print_buf + written, print_buffer_size - written,
+                            "\x1B[%d;%dH", ay+1, x+1);
+                            if (print_ret > 0 && print_ret < print_buffer_size - written)
+                                written += print_ret;
                         }
 
                         // prints background and foreground colour change command, or either of them, or none
                         // depending on the previously computed difference
+                        // color codes and character
                         if (!bgsame && !pixelsame)
-                            printf("\x1B[48;2;%d;%d;%d;38;2;%d;%d;%dm%s", pixelbg[2], pixelbg[1], pixelbg[0],
-                                   pixelchar[2], pixelchar[1], pixelchar[0], shapechar);
+                            print_ret = snprintf(print_buf + written, print_buffer_size - written,
+                                                    "\x1B[48;2;%d;%d;%d;38;2;%d;%d;%dm%s",
+                                                    pixelbg[2], pixelbg[1], pixelbg[0],
+                                                    pixelchar[2], pixelchar[1], pixelchar[0], shapechar);
                         else if (!bgsame)
-                            printf("\x1B[48;2;%d;%d;%dm%s", pixelbg[2], pixelbg[1], pixelbg[0], shapechar);
+                            print_ret = snprintf(print_buf + written, print_buffer_size - written,
+                                                    "\x1B[48;2;%d;%d;%dm%s",
+                                                    pixelbg[2], pixelbg[1], pixelbg[0], shapechar);
                         else if (!pixelsame)
-                            printf("\x1B[38;2;%d;%d;%dm%s", pixelchar[2], pixelchar[1], pixelchar[0], shapechar);
+                            print_ret = snprintf(print_buf + written, print_buffer_size - written,
+                                                    "\x1B[38;2;%d;%d;%dm%s",
+                                                    pixelchar[2], pixelchar[1], pixelchar[0], shapechar);
                         else
-                            printf("%s", shapechar);
+                            print_ret = snprintf(print_buf + written, print_buffer_size - written,
+                                                    "%s", shapechar);
+
+                        if (print_ret > 0 && print_ret < print_buffer_size - written)
+                            written += print_ret;
 
                         // advance the cursor to keep track of where it is
                         r = ay;
@@ -525,13 +584,28 @@ int main(int argc, char *argv[]) {
                 }
             }
             refresh = false;
+            // print the fps, avg fps, dropped frames, etc. at the bottom of the video
+            print_ret = snprintf(print_buf + written, print_buffer_size - written,
+                                         "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m   fps:  %5.2f   |   avg_fps:  %5.2f   |   print:  %6.2fms   |   dropped:  %5d   |   curr_frame:  %5d                 ",
+                                         msg_y+1, 1, static_cast<double>(frametimes.size()) * 1000000.0 / frame10_time, avg_fps,
+                                         static_cast<double>(printing_time) / 1000.0, dropped, curr_frame);
+            if (print_ret > 0 && print_ret < print_buffer_size - written)
+                written += print_ret;
+
             printtime = std::chrono::steady_clock::now();
-            // flush the print buffer
-            fflush(stdout);
+            // one write call for entire frame
+            write(STDOUT_FILENO, print_buf, written);
 
             printing_time = (int) std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::steady_clock::now() - printtime).count();
             total_printing_time += printing_time;
+        }
+
+        // free the buffers when the video completes
+        if (alloc) {
+            std::free(frame);
+            std::free(old);
+            std::free(print_buf);
         }
     } else {
         printf("\x1B[0mfile not found\n");

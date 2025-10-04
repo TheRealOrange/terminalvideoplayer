@@ -16,13 +16,13 @@ extern "C" {
 
 class video {
 public:
-    video(char filename[], int w, int h);
-    explicit video(char filename[]) : video(filename, -1, -1) {};
+    video(const char filename[], int w, int h);
+    explicit video(const char filename[]) : video(filename, -1, -1) {};
     ~video();
 
     void setResize(int w, int h);
     [[nodiscard]] bool isOpened() const;
-    double get_fps();
+    double get_fps() const;
     [[nodiscard]] int get_width() const;
     [[nodiscard]] int get_height() const;
     [[nodiscard]] int get_dst_buf_size() const;
@@ -31,7 +31,7 @@ public:
 
 private:
     AVFormatContext* inctx = nullptr;
-    AVCodecContext* codec;
+    AVCodecContext* codec = nullptr;
     const AVCodec* vcodec = nullptr;
     AVStream* vstrm = nullptr;
     AVFrame* frame = nullptr;
