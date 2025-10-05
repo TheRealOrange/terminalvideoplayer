@@ -21,6 +21,7 @@
 #define CPU_DITHERING_DECAY 0.7f
 #define OPENCL_DITHERING_DECAY 0.45f
 #define ATKINSON_DITHERING
+#define TRACK_HIT_RATE
 #include "pixelmap.h"
 
 #if defined(_WIN32)
@@ -102,6 +103,11 @@ std::thread write_thread;
 // tracking printtime in thread
 std::atomic<int> last_printing_time(0);
 
+#ifdef TRACK_HIT_RATE
+// tracking usage of different unicode characters
+int char_usage[DIFF_CASES] = {0};
+#endif
+
 int diffthreshold = DEFAULT_DIFFTHRESHOLD;
 
 // char width scaling (assuming terminal chars are 2x1 hxw)
@@ -125,6 +131,35 @@ void terminateProgram([[maybe_unused]] int sig_num) {
        msg_y+1, 1, curr_frame, dropped, (double) total_video_time / 1000000.0,
        (double) total_render_time / 1000000.0,
        (double) total_printing_time / 1000000.0);
+
+#ifdef TRACK_HIT_RATE
+    // sum total character renders
+    long long total_chars = 0;
+    for (int i = 0; i < DIFF_CASES; i++) {
+        total_chars += char_usage[i];
+    }
+
+    int sorted_indices[DIFF_CASES];
+    for (int i = 0; i < DIFF_CASES; i++) sorted_indices[i] = i;
+
+    // descending sort by usage count
+    std::sort(sorted_indices, sorted_indices + DIFF_CASES,
+              [](int a, int b) { return char_usage[a] > char_usage[b]; });
+
+    printf("\n\nCharacter Usage Statistics\n");
+    printf("Total characters rendered: %lld\n\n", total_chars);
+
+    for (int i = 0; i < DIFF_CASES; i++) {
+        int idx = sorted_indices[i];
+        if (char_usage[idx] > 0) {
+            double percentage = (double)char_usage[idx] * 100.0 / (double)total_chars;
+            printf("%2d. %11d  (%6.2f%%)  %s\n",
+                   i + 1, char_usage[idx], percentage, characters[idx]);
+        }
+    }
+    printf("\n");
+    printf("\u001b[?25h");
+#endif
     fflush(stdout);
     exit(0);
 }
@@ -700,6 +735,9 @@ int main(int argc, char *argv[]) {
                             pixelbg[1] = (bg_colors[char_idx] >> 8) & 0xFF;
                             pixelbg[0] = bg_colors[char_idx] & 0xFF;
 
+#ifdef TRACK_HIT_RATE
+                            char_usage[char_indices[char_idx]]++;
+#endif
                             shapechar = characters[char_indices[char_idx]];
 
                             bgsame = false;
@@ -846,6 +884,9 @@ int main(int argc, char *argv[]) {
                                     mindiff = cases[case_it];
                                 }
                             }
+#ifdef TRACK_HIT_RATE
+                            char_usage[case_min]++;
+#endif
                             shapechar = characters[case_min];
 
                             diffbg = 0;
