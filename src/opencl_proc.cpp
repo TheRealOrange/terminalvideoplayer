@@ -59,6 +59,16 @@ bool OpenCLProc::initialize() {
         }
     }
 
+    // Get device name
+    char device_name_buffer[256];
+    err = clGetDeviceInfo(device, CL_DEVICE_NAME, sizeof(device_name_buffer),
+                          device_name_buffer, nullptr);
+    if (err == CL_SUCCESS) {
+        device_name = std::string(device_name_buffer);
+    } else {
+        device_name = "Unknown Device";
+    }
+
     // Create context
     context = clCreateContext(nullptr, 1, &device, nullptr, nullptr, &err);
     if (err != CL_SUCCESS) {
@@ -106,7 +116,7 @@ bool OpenCLProc::initialize() {
 }
 
 bool OpenCLProc::createBuffers(size_t frame_size, size_t grid_size) {
-    if (current_buffer_size == frame_size) return true;
+    if (current_buffer_size == frame_size && current_grid_size == grid_size) return true;
 
     cl_int err;
 
@@ -151,6 +161,7 @@ bool OpenCLProc::createBuffers(size_t frame_size, size_t grid_size) {
     if (err != CL_SUCCESS) return false;
 
     current_buffer_size = frame_size;
+    current_grid_size = grid_size;
     return true;
 }
 

@@ -18,7 +18,8 @@
 
 #define DEFAULT_DIFFTHRESHOLD 10
 #define CHANGE_THRESHOLD 15
-#define DITHERING_DECAY 0.7f
+#define CPU_DITHERING_DECAY 0.7f
+#define OPENCL_DITHERING_DECAY 0.45f
 #define ATKINSON_DITHERING
 #include "pixelmap.h"
 
@@ -239,24 +240,55 @@ int main(int argc, char *argv[]) {
     if (std::filesystem::exists(argv[1])) {
 #endif
 
+        // Parse command line arguments
+        const char* video_file = nullptr;
+        bool enable_opencl = false;
 
-#ifdef HAVE_OPENCL
-        // Initialize OpenCL
-        OpenCLProc ocl;
-        bool use_opencl = ocl.initialize();
-        if (use_opencl) {
-            printf("opencl init success, using gpu: \n");
-        } else {
-            printf("opencl init fail, using cpu\n");
+        for (int i = 1; i < argc; i++) {
+            if (strcmp(argv[i], "--help") == 0) {
+                printf("Usage: %s <video_file> [diff_threshold] [options]\n", argv[0]);
+                printf("Options:\n");
+                printf("  --use-opencl    Enable OpenCL GPU acceleration\n");
+                printf("  --help          Show this help message\n");
+                return 0;
+            }
+            if (strcmp(argv[i], "--use-opencl") == 0) {
+                enable_opencl = true;
+            } else if (argv[i][0] != '-' && video_file == nullptr) {
+                video_file = argv[i];
+            } else if (argv[i][0] != '-' && video_file != nullptr) {
+                diffthreshold = std::stoi(argv[i], nullptr, 10);
+            }
         }
-#else
-        bool use_opencl = false;
-        printf("using cpu\n");
-#endif
+
+        if (video_file == nullptr || strlen(video_file) <= 0) {
+            printf("\x1B[0mplease provide the filename as the first input argument\n");
+            return 0;
+        }
 
         // if the diff threshold argument is specified, and is within range, use the specified diff
-        if (argc > 2) diffthreshold = std::stoi(argv[2], nullptr, 10);
         diffthreshold = std::max(std::min(255, diffthreshold), 0);
+
+        bool use_opencl = false;
+#ifdef HAVE_OPENCL
+        OpenCLProc ocl;
+        if (enable_opencl) {
+            use_opencl = ocl.initialize();
+            if (use_opencl) {
+                printf("opencl initialized: %s\n", ocl.getDeviceName().c_str());
+            } else {
+                printf("opencl initialization failed, falling back to cpu\n");
+            }
+        } else {
+            printf("using cpu (opencl disabled)\n");
+        }
+#else
+        if (enable_opencl) {
+            printf("Warning: OpenCL requested but not compiled in, using CPU\n");
+        } else {
+            printf("Using CPU\n");
+        }
+#endif
 
         // open the video file and create the decode object
         video cap(argv[1]);
@@ -560,7 +592,7 @@ int main(int argc, char *argv[]) {
             int video_width = cap.get_width() / sx;
             if (error_buffer) {
                 for (int i = 0; i < video_height * video_width * 3; i++) {
-                    error_buffer[i] *= DITHERING_DECAY;
+                    error_buffer[i] *= (use_opencl) ? OPENCL_DITHERING_DECAY : CPU_DITHERING_DECAY;
                 }
             }
 

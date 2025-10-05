@@ -23,6 +23,7 @@ public:
 
   bool initialize();
   bool isInitialized() const { return initialized; }
+  std::string getDeviceName() const { return device_name; }
 
   // Process entire frame on GPU
   void processFrame(
@@ -50,6 +51,7 @@ private:
   cl_program program = nullptr;
   cl_kernel kernel_process = nullptr;
   cl_device_id device = nullptr;
+  std::string device_name;
 
   // Device memory buffers
   cl_mem d_frame = nullptr;
@@ -63,6 +65,7 @@ private:
   cl_mem d_pixelmap = nullptr;
 
   size_t current_buffer_size = 0;
+  size_t current_grid_size = 0;
 
   void cleanup();
   bool createBuffers(size_t frame_size, size_t grid_size);
