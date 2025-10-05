@@ -1,6 +1,9 @@
 # cmake output
 cmake-build-*
 
+# cmake generated
+inc/generated
+
 # Prerequisites
 *.d
 

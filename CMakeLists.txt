@@ -9,6 +9,31 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 include(CheckIPOSupported)
 check_ipo_supported(RESULT ipo_supported OUTPUT error)
 
+# optional opencl if found
+find_package(OpenCL)
+if(OpenCL_FOUND)
+    message(STATUS "opencl found: gpu acceleration enabled")
+    add_compile_definitions(HAVE_OPENCL)
+    set(OPENCL_SOURCES src/opencl_proc.cpp)
+
+    # Include the embed function
+    include(${CMAKE_CURRENT_SOURCE_DIR}/embed_file.cmake)
+
+    # Embed OpenCL kernel file
+    embed_opencl_kernel(
+            INPUT_FILE "${CMAKE_CURRENT_SOURCE_DIR}/src/process_frame.cl"
+            OUTPUT_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/inc/generated/kernel_source.h"
+            VARIABLE_NAME "kernel_source"
+    )
+
+    # Track the kernel file so CMake reconfigures when it changes
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/process_frame.cl"
+    )
+else()
+    message(STATUS "opencl not found: building without GPU acceleration")
+endif()
+
 # ffmpeg libraries
 if(WIN32)
     # windows
@@ -38,19 +63,26 @@ else()
     )
     pkg_check_modules(SDL2 REQUIRED sdl2)
 endif()
-set(SOURCES src/main.cpp src/video.cpp)
+set(SOURCES src/main.cpp src/video.cpp ${OPENCL_SOURCES})
 
 add_executable(tvp ${SOURCES})
-target_include_directories(tvp PRIVATE ${CMAKE_SOURCE_DIR}/inc ${FFMPEG_INCLUDE_DIRS} ${SDL2_INCLUDE_DIRS})
+target_include_directories(tvp PRIVATE
+        ${CMAKE_SOURCE_DIR}/inc
+        ${FFMPEG_INCLUDE_DIRS}
+        ${SDL2_INCLUDE_DIRS}
+)
 target_link_libraries(tvp PRIVATE ${FFMPEG_LIBRARIES} ${SDL2_LIBRARIES})
 target_link_directories(tvp PRIVATE ${FFMPEG_LIBRARY_DIRS} ${SDL2_LIBRARY_DIRS})
+
+if(OpenCL_FOUND)
+    target_include_directories(tvp PRIVATE ${OpenCL_INCLUDE_DIRS})
+    target_link_libraries(tvp PRIVATE ${OpenCL_LIBRARIES})
+endif()
 
 target_compile_options(tvp PRIVATE -O3 -Wall -Wextra -ffast-math)
 
 if(ipo_supported)
-    set_target_properties(tvp PROPERTIES
-            INTERPROCEDURAL_OPTIMIZATION TRUE
-    )
+    set_target_properties(tvp PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
     message(STATUS "ipo/lto enabled for tvp")
 else()
     message(STATUS "ipo/lto not supported: ${error}")
@@ -65,6 +97,9 @@ elseif(APPLE)
     if(COREFOUNDATION_LIBRARY)
         target_link_libraries(tvp PRIVATE ${COREFOUNDATION_LIBRARY})
     endif()
+    if(OpenCL_FOUND)
+        target_link_libraries(tvp PRIVATE "-framework OpenCL")
+    endif()
 elseif(UNIX)
     # Linux-specific
     target_link_libraries(tvp PRIVATE pthread)
@@ -75,3 +110,7 @@ message(STATUS "ffmpeg libraries: ${FFMPEG_LIBRARIES}")
 message(STATUS "ffmpeg include dirs: ${FFMPEG_INCLUDE_DIRS}")
 message(STATUS "sdl2 libraries: ${SDL2_LIBRARIES}")
 message(STATUS "sdl2 include dirs: ${SDL2_INCLUDE_DIRS}")
+if(OpenCL_FOUND)
+    message(STATUS "opencl libraries: ${OpenCL_LIBRARIES}")
+    message(STATUS "opencl include dirs: ${OpenCL_INCLUDE_DIRS}")
+endif()
