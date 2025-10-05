@@ -3,9 +3,9 @@ function(embed_text_file INPUT_FILE OUTPUT_HEADER VARIABLE_NAME)
     file(READ ${INPUT_FILE} FILE_CONTENT)
 
     # escape special characters for C++ string literal
-    string(REPLACE ";" "\;" FILE_CONTENT "${FILE_CONTENT}")
     string(REPLACE "\\" "\\\\" FILE_CONTENT "${FILE_CONTENT}")
     string(REPLACE "\"" "\\\"" FILE_CONTENT "${FILE_CONTENT}")
+    string(REPLACE ";" "\;" FILE_CONTENT "${FILE_CONTENT}")
     string(REPLACE "\n" "\\n\"\n\"" FILE_CONTENT "${FILE_CONTENT}")
 
     # get just the filename for the comment
