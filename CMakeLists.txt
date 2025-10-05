@@ -74,6 +74,21 @@ target_include_directories(tvp PRIVATE
 target_link_libraries(tvp PRIVATE ${FFMPEG_LIBRARIES} ${SDL2_LIBRARIES})
 target_link_directories(tvp PRIVATE ${FFMPEG_LIBRARY_DIRS} ${SDL2_LIBRARY_DIRS})
 
+if(WIN32)
+    # Windows system libraries required by static FFmpeg
+    target_link_libraries(tvp PRIVATE
+            ws2_32      # Winsock2 - networking functions
+            secur32     # Security Support Provider Interface
+            bcrypt      # Cryptography functions
+            mfplat      # Media Foundation Platform
+            mfuuid      # Media Foundation UUIDs
+            strmiids    # DirectShow
+    )
+    if(MINGW)
+        target_link_options(tvp PRIVATE -static-libgcc -static-libstdc++ -static)
+    endif()
+endif()
+
 if(OpenCL_FOUND)
     target_include_directories(tvp PRIVATE ${OpenCL_INCLUDE_DIRS})
     target_link_libraries(tvp PRIVATE ${OpenCL_LIBRARIES})

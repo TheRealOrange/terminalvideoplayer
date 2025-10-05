@@ -27,6 +27,8 @@
 #define WIN32_LEAN_AND_MEAN
 #define VC_EXTRALEAN
 #include <Windows.h>
+#include <io.h>
+#define write _write
 #elif defined(__linux__) || defined(__APPLE__)
 
 #include <fcntl.h>
@@ -227,6 +229,39 @@ int main(int argc, char *argv[]) {
     // bind the function to the SIGINT signal
     signal(SIGINT, terminateProgram);
 
+#ifdef _WIN32
+    // Set console to UTF-8
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+
+    // Enable ANSI escape sequences
+    HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    DWORD dwMode = 0;
+    GetConsoleMode(hOut, &dwMode);
+    dwMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+    SetConsoleMode(hOut, dwMode);
+#endif
+
+    // Parse command line arguments
+    const char* video_file = nullptr;
+    bool enable_opencl = false;
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--help") == 0) {
+            printf("Usage: %s <video_file> [diff_threshold] [options]\n", argv[0]);
+            printf("Options:\n");
+            printf("  --use-opencl    Enable OpenCL GPU acceleration\n");
+            printf("  --help          Show this help message\n");
+            return 0;
+        }
+        if (strcmp(argv[i], "--use-opencl") == 0) {
+            enable_opencl = true;
+        } else if (argv[i][0] != '-' && video_file == nullptr) {
+            video_file = argv[i];
+        } else if (argv[i][0] != '-' && video_file != nullptr) {
+            diffthreshold = std::stoi(argv[i], nullptr, 10);
+        }
+    }
+
     // check if number of arguments is correct
     if (argc <= 1 || strlen(argv[1]) <= 0) {
         printf("\x1B[0mplease provide the filename as the first input argument");
@@ -239,32 +274,6 @@ int main(int argc, char *argv[]) {
 #else
     if (std::filesystem::exists(argv[1])) {
 #endif
-
-        // Parse command line arguments
-        const char* video_file = nullptr;
-        bool enable_opencl = false;
-
-        for (int i = 1; i < argc; i++) {
-            if (strcmp(argv[i], "--help") == 0) {
-                printf("Usage: %s <video_file> [diff_threshold] [options]\n", argv[0]);
-                printf("Options:\n");
-                printf("  --use-opencl    Enable OpenCL GPU acceleration\n");
-                printf("  --help          Show this help message\n");
-                return 0;
-            }
-            if (strcmp(argv[i], "--use-opencl") == 0) {
-                enable_opencl = true;
-            } else if (argv[i][0] != '-' && video_file == nullptr) {
-                video_file = argv[i];
-            } else if (argv[i][0] != '-' && video_file != nullptr) {
-                diffthreshold = std::stoi(argv[i], nullptr, 10);
-            }
-        }
-
-        if (video_file == nullptr || strlen(video_file) <= 0) {
-            printf("\x1B[0mplease provide the filename as the first input argument\n");
-            return 0;
-        }
 
         // if the diff threshold argument is specified, and is within range, use the specified diff
         diffthreshold = std::max(std::min(255, diffthreshold), 0);

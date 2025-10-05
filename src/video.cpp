@@ -4,6 +4,7 @@
 
 #include "video.h"
 
+#include <mutex>
 #include <queue>
 
 struct AudioBuffer {
