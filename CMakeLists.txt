@@ -1,9 +1,13 @@
 cmake_minimum_required(VERSION 3.15)
 project(tvp VERSION 1.0 LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Check if LTO is supported
+include(CheckIPOSupported)
+check_ipo_supported(RESULT ipo_supported OUTPUT error)
 
 # ffmpeg libraries
 if(WIN32)
@@ -41,8 +45,16 @@ target_include_directories(tvp PRIVATE ${CMAKE_SOURCE_DIR}/inc ${FFMPEG_INCLUDE_
 target_link_libraries(tvp PRIVATE ${FFMPEG_LIBRARIES} ${SDL2_LIBRARIES})
 target_link_directories(tvp PRIVATE ${FFMPEG_LIBRARY_DIRS} ${SDL2_LIBRARY_DIRS})
 
-target_compile_options(tvp PRIVATE -O3 -Wall -Wextra)
+target_compile_options(tvp PRIVATE -O3 -Wall -Wextra -ffast-math)
 
+if(ipo_supported)
+    set_target_properties(tvp PROPERTIES
+            INTERPROCEDURAL_OPTIMIZATION TRUE
+    )
+    message(STATUS "ipo/lto enabled for tvp")
+else()
+    message(STATUS "ipo/lto not supported: ${error}")
+endif()
 
 # Platform-specific settings
 if(WIN32)
@@ -58,7 +70,7 @@ elseif(UNIX)
     target_link_libraries(tvp PRIVATE pthread)
 endif()
 
-message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+message(STATUS "build type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "ffmpeg libraries: ${FFMPEG_LIBRARIES}")
 message(STATUS "ffmpeg include dirs: ${FFMPEG_INCLUDE_DIRS}")
 message(STATUS "sdl2 libraries: ${SDL2_LIBRARIES}")

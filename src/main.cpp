@@ -5,11 +5,15 @@
 #include <filesystem>
 #include <queue>
 #include <csignal>
+#include <mutex>
+#include <condition_variable>
+#include <atomic>
 #include <cstdlib>
 
 #include "video.h"
 
-#define CHANGE_THRESHOLD 11
+#define DEFAULT_DIFFTHRESHOLD 10
+#define CHANGE_THRESHOLD 15
 #define DITHERING_DECAY 0.7f
 #define ATKINSON_DITHERING
 
@@ -280,7 +284,7 @@ int count = 0, curr_frame = 0;;
 double fps;
 int period = 0;
 
-int printing_time, elapsed;
+int printing_time, rendering_time, elapsed;
 double avg_fps = 0;
 int total_time = 0, frame10_time = 0;
 std::queue<int> frametimes;
@@ -288,23 +292,49 @@ int msg_y = 0;
 int dropped = 0;
 double skip;
 
-std::chrono::time_point<std::chrono::steady_clock> start, stop, videostart, videostop, printtime;
+std::chrono::time_point<std::chrono::steady_clock> start, stop, render_start, render_end;
+std::chrono::time_point<std::chrono::steady_clock> videostart, videostop;
 long long total_printing_time = 0;
+long long total_render_time = 0;
+int cursor_moves = 0;
 
-int diffthreshold = 10;
+// thread management for write operations
+std::mutex render_buffer_mutex;
+std::condition_variable buffer_ready_cv;
+// double-buffering for write thread
+char* render_buffer = nullptr;
+int render_buffer_size = 0;
+int render_buffer_written = 0;
+// threading signals for nextframe and shutdown
+std::atomic<bool> frame_ready(false);
+std::atomic<bool> write_thread_running(true);
+std::thread write_thread;
+// tracking printtime in thread
+std::atomic<int> last_printing_time(0);
 
+int diffthreshold = DEFAULT_DIFFTHRESHOLD;
+
+// char width scaling (assuming terminal chars are 2x1 hxw)
 int sx = CHAR_X, sy = CHAR_X*2;
 int skipy = sy / CHAR_Y, skipx = sx / CHAR_X;
 
 // function to intercept SIGINT such that we print the ANSI code to restore the cursor visibility
 // and also print some statistics about the video played
 void terminateProgram([[maybe_unused]] int sig_num) {
+    write_thread_running = false;
+    frame_ready = true;
+    buffer_ready_cv.notify_one();
+    if (write_thread.joinable()) {
+        write_thread.join();
+    }
+
     videostop = std::chrono::steady_clock::now();
     long long total_video_time = (long long) std::chrono::duration_cast<std::chrono::microseconds>(
             videostop - videostart).count();
-    printf("\x1B[0m\x1B[%d;%dHframes: %5d, dropped: %5d,  total time: %5.2fs,  printing time: %5.2fs                                                            \u001b[?25h",
-           msg_y+1, 1, curr_frame, dropped, (double) total_video_time / 1000000.0,
-           (double) total_printing_time / 1000000.0);
+    printf("\x1B[0m\x1B[%d;%dHframes: %5d, dropped: %5d,  total time: %5.2fs,  render time: %5.2fs,  printing time: %5.2fs                                                            \u001b[?25h",
+       msg_y+1, 1, curr_frame, dropped, (double) total_video_time / 1000000.0,
+       (double) total_render_time / 1000000.0,
+       (double) total_printing_time / 1000000.0);
     fflush(stdout);
     exit(0);
 }
@@ -327,14 +357,82 @@ inline unsigned char linear_to_srgb(float v) {
     return (unsigned char)(std::clamp(v * 255.0f, 0.0f, 255.0f));
 }
 
+#define SQRT_LUT_MAX (255*255*12)
+static int sqrt_lut[SQRT_LUT_MAX];  // max possible value is 2*255^2 + 4*255^2 + 3*255^2
+
+void init_sqrt_lut() {
+    for (int i = 0; i < SQRT_LUT_MAX; i++) {
+        sqrt_lut[i] = static_cast<int>(sqrt(static_cast<float>(i)));
+    }
+}
+
 inline int perceptual_diff(int r1, int g1, int b1, int r2, int g2, int b2) {
+    if (r1 > 255 || r2 > 255 || g1 > 255 || g2 > 255 || b1 > 255 || b2 > 255)
+        return 9999;  // large value to force update
+
     int dr = r1 - r2;
     int dg = g1 - g2;
     int db = b1 - b2;
-    return static_cast<int>(sqrt(2*dr*dr + 4*dg*dg + 3*db*db));
+    int idx = 2*dr*dr + 4*dg*dg + 3*db*db;
+    return sqrt_lut[idx];
+}
+
+void write_thread_func() {
+    char* write_buffer_local = nullptr;
+    int write_buffer_size_local = 0;
+    std::chrono::time_point<std::chrono::steady_clock> printtime, print_end;
+
+    while (write_thread_running) {
+        std::unique_lock<std::mutex> lock(render_buffer_mutex);
+        buffer_ready_cv.wait(lock, [] { return frame_ready.load() || !write_thread_running.load(); });
+
+        if (!write_thread_running && !frame_ready) break;
+
+        if (frame_ready && render_buffer_written > 0) {
+            // resize local buffer if needed
+            if (!write_buffer_local || write_buffer_size_local < render_buffer_written) {
+                char* temp = static_cast<char*>(std::realloc(write_buffer_local, render_buffer_written));
+                if (temp) {
+                    write_buffer_local = temp;
+                    write_buffer_size_local = render_buffer_written;
+                } else {
+                    // realloc failed
+                    fprintf(stderr, "failed to reallocate write buffer\n");
+                    frame_ready = false;
+                    lock.unlock();
+                    continue;
+                }
+            }
+
+            // copy render buffer to local print buffer
+            memcpy(write_buffer_local, render_buffer, render_buffer_written);
+            int bytes_to_write = render_buffer_written;
+            frame_ready = false;
+
+            // release lock right after copying
+            lock.unlock();
+
+            // profile write time
+            printtime = std::chrono::steady_clock::now();
+            // write entire buffer in one call
+            write(STDOUT_FILENO, write_buffer_local, bytes_to_write);
+            print_end = std::chrono::steady_clock::now();
+
+            int printing_time_local = (int) std::chrono::duration_cast<std::chrono::microseconds>(
+                    print_end - printtime).count();
+            last_printing_time.store(printing_time_local);
+        } else {
+            lock.unlock();
+        }
+    }
+
+    if (write_buffer_local) {
+        std::free(write_buffer_local);
+    }
 }
 
 int main(int argc, char *argv[]) {
+    init_sqrt_lut();
     // initialise time reference so its valid in the SIGINT handler
     videostart = std::chrono::steady_clock::now();
 
@@ -418,6 +516,8 @@ int main(int argc, char *argv[]) {
         int cases[DIFF_CASES];
         int case_min = 0;
 
+        write_thread = std::thread(write_thread_func);
+
         while (true) {
             count++;      // count the actual number of frames printed
             curr_frame++; // count the current frame we are on
@@ -490,10 +590,24 @@ int main(int argc, char *argv[]) {
                     char* realloc_print_buf = static_cast<char *>(std::realloc(print_buf, print_buffer_size));
                     float* realloc_error = static_cast<float*>(std::realloc(error_buffer, curr_w*curr_h*3*sizeof(float)));
 
+                    char* realloc_render_buf = nullptr;
+                    {
+                        std::lock_guard<std::mutex> lock(render_buffer_mutex);
+                        realloc_render_buf = static_cast<char *>(std::realloc(render_buffer, print_buffer_size));
+                    }
+
+
                     if (realloc_frame && realloc_old && realloc_print_buf && realloc_error) {
                         frame = realloc_frame;
                         old = realloc_old;
                         print_buf = realloc_print_buf;
+
+                        {
+                            std::lock_guard<std::mutex> lock(render_buffer_mutex);
+                            render_buffer = realloc_render_buf;
+                            render_buffer_size = print_buffer_size;
+                        }
+
                         error_buffer = realloc_error;
 
                         // clear reallocated buffers
@@ -509,6 +623,14 @@ int main(int argc, char *argv[]) {
 
                         if (realloc_print_buf) std::free(realloc_print_buf);
                         else std::free(print_buf);
+
+                        if (realloc_render_buf) {
+                            std::lock_guard<std::mutex> lock(render_buffer_mutex);
+                            std::free(realloc_render_buf);
+                        } else {
+                            std::lock_guard<std::mutex> lock(render_buffer_mutex);
+                            std::free(render_buffer);
+                        }
 
                         if (realloc_error) std::free(realloc_error);
                         else std::free(error_buffer);
@@ -526,6 +648,15 @@ int main(int argc, char *argv[]) {
                     // and every single character needs a cursor move
                     print_buffer_size = curr_w * curr_h * 60;  // 60 bytes per char with safety margin
                     print_buf = static_cast<char *>(malloc(print_buffer_size));
+                    // acquire lock and allocate render buffer
+                    char* temp_render_buffer = nullptr;
+                    {
+                        std::lock_guard<std::mutex> lock(render_buffer_mutex);
+                        render_buffer_size = print_buffer_size;
+                        temp_render_buffer = static_cast<char *>(malloc(render_buffer_size));
+                        render_buffer = temp_render_buffer;
+                    }
+
                     // allocate dithering error buffer
                     error_buffer = static_cast<float*>(std::calloc(curr_w*curr_h*3,sizeof(float)));
 
@@ -536,6 +667,11 @@ int main(int argc, char *argv[]) {
                         if (frame) std::free(frame);
                         if (old) std::free(old);
                         if (print_buf) std::free(print_buf);
+                        if (temp_render_buffer) {
+                            std::lock_guard<std::mutex> lock(render_buffer_mutex);
+                            std::free(render_buffer);
+                            render_buffer = nullptr;
+                        }
                         if (error_buffer) std::free(error_buffer);
 
                         alloc = false;
@@ -627,6 +763,10 @@ int main(int argc, char *argv[]) {
 
             // reset snprintf buffer
             written = 0;
+            // reset cursor moves tracking
+            cursor_moves = 0;
+            // start tracking render time
+            render_start = std::chrono::steady_clock::now();
 
             for (int ay = 0; ay < cap.get_height() / sy; ay++) {
                 // set the row pointers
@@ -821,6 +961,7 @@ int main(int argc, char *argv[]) {
                         // if the cursor is already in the right position, do not print the ansi move cursor command
                         // the ansi position command is one indexed
                         if (r != ay || c != x) {
+                            cursor_moves++;
                             print_ret = snprintf(print_buf + written, print_buffer_size - written,
                             "\x1B[%d;%dH", ay+1, x+1);
                             if (print_ret > 0 && print_ret < print_buffer_size - written)
@@ -862,20 +1003,29 @@ int main(int argc, char *argv[]) {
                 }
             }
             refresh = false;
+            render_end = std::chrono::steady_clock::now();
+            rendering_time = (int) std::chrono::duration_cast<std::chrono::microseconds>(render_end - render_start).count();
+            total_render_time += rendering_time;
             // print the fps, avg fps, dropped frames, etc. at the bottom of the video
             print_ret = snprintf(print_buf + written, print_buffer_size - written,
-                                         "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m   fps:  %5.2f   |   avg_fps:  %5.2f   |   print:  %6.2fms   |   dropped:  %5d   |   curr_frame:  %5d                 ",
+                                         "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  fps:  %6.2f  |  avg_fps:  %6.2f  |  render:  %6.2fms  |  print:  %6.2fms  |  cursor:  %5d  |  chars:  %5.1fk  |  dropped:  %5d  |  curr_frame:  %5d                ",
                                          msg_y+1, 1, static_cast<double>(frametimes.size()) * 1000000.0 / frame10_time, avg_fps,
-                                         static_cast<double>(printing_time) / 1000.0, dropped, curr_frame);
+                                         static_cast<double>(rendering_time) / 1000.0, static_cast<double>(printing_time) / 1000.0,
+                                         cursor_moves, written/1000.0, dropped, curr_frame);
             if (print_ret > 0 && print_ret < print_buffer_size - written)
                 written += print_ret;
 
-            printtime = std::chrono::steady_clock::now();
-            // one write call for entire frame
-            write(STDOUT_FILENO, print_buf, written);
+            // send buffer to printing thread
+            {
+                std::lock_guard<std::mutex> lock(render_buffer_mutex);
+                memcpy(render_buffer, print_buf, written);
+                render_buffer_written = written;
+                frame_ready = true;
+            }
+            buffer_ready_cv.notify_one();
 
-            printing_time = (int) std::chrono::duration_cast<std::chrono::microseconds>(
-                    std::chrono::steady_clock::now() - printtime).count();
+            // get last printing time from write thread
+            printing_time = last_printing_time.load();
             total_printing_time += printing_time;
         }
 
