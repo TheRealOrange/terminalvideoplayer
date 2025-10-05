@@ -41,6 +41,7 @@ void audio_callback([[maybe_unused]] void* userdata, uint8_t* stream, int len) {
 
 video::video(const char filename[], int w, int h) {
     errbuf[0] = '\0';
+    av_log_set_level(AV_LOG_ERROR);
     int ret = avformat_open_input(&inctx, filename, nullptr, nullptr);
     if (ret < 0) {
         av_make_error_string(errbuf, sizeof(errbuf), ret);
@@ -138,7 +139,7 @@ video::video(const char filename[], int w, int h) {
                         audio_available = false;
                     } else {
                         // Setup resampler
-                        swr_alloc_set_opts2(&swr_ctx,
+                        int ret_swr = swr_alloc_set_opts2(&swr_ctx,
                             &audio_codec->ch_layout,
                             AV_SAMPLE_FMT_S16,
                             spec.freq,
@@ -146,9 +147,23 @@ video::video(const char filename[], int w, int h) {
                             audio_codec->sample_fmt,
                             audio_codec->sample_rate,
                             0, nullptr);
-                        swr_init(swr_ctx);
 
-                        SDL_PauseAudio(0); // Start playing
+                        if (ret_swr < 0) {
+                            fprintf(stderr, "failed to allocate resampler\n");
+                            audio_available = false;
+                            SDL_CloseAudio();
+                        } else {
+                            ret_swr = swr_init(swr_ctx);
+                            if (ret_swr < 0) {
+                                fprintf(stderr, "failed to initialize resampler\n");
+                                audio_available = false;
+                                SDL_CloseAudio();
+                                swr_free(&swr_ctx);
+                            } else {
+                                swr_set_compensation(swr_ctx, 0, 0);
+                                SDL_PauseAudio(0); // start playing
+                            }
+                        }
                     }
                 }
             }
@@ -229,11 +244,19 @@ int video::get_frame(int dst_w, int dst_h, const char* dst_frame) {
                         break;
                     }
 
+                    // check if we have valid audio data
+                    if (!audio_frame->nb_samples || !swr_ctx) {
+                        break;
+                    }
+
+                    // resample audio
                     int out_samples = av_rescale_rnd(
                         swr_get_delay(swr_ctx, audio_codec->sample_rate) + audio_frame->nb_samples,
                         audio_codec->sample_rate,
                         audio_codec->sample_rate,
                         AV_ROUND_UP);
+
+                    if (out_samples <= 0) break;
 
                     int nb_channels = audio_codec->ch_layout.nb_channels;
                     std::vector<uint8_t> audio_data(out_samples * nb_channels * 2);
@@ -248,7 +271,7 @@ int video::get_frame(int dst_w, int dst_h, const char* dst_frame) {
                     if (converted > 0) {
                         audio_data.resize(converted * nb_channels * 2);
 
-                        std::lock_guard lock(audio_buffer.mutex);
+                        std::lock_guard<std::mutex> lock(audio_buffer.mutex);
                         if (audio_buffer.queue.size() < audio_buffer.max_size) {
                             audio_buffer.queue.push(std::move(audio_data));
                         }
