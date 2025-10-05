@@ -129,6 +129,14 @@ bool OpenCLProc::createBuffers(size_t frame_size, size_t grid_size) {
     if (d_fg_colors) clReleaseMemObject(d_fg_colors);
     if (d_bg_colors) clReleaseMemObject(d_bg_colors);
     if (d_needs_update) clReleaseMemObject(d_needs_update);
+    d_frame = nullptr;
+    d_old_frame = nullptr;
+    d_output_frame = nullptr;
+    d_error_buffer = nullptr;
+    d_char_indices = nullptr;
+    d_fg_colors = nullptr;
+    d_bg_colors = nullptr;
+    d_needs_update = nullptr;
 
     // Create new buffers
     d_frame = clCreateBuffer(context, CL_MEM_READ_ONLY, frame_size, nullptr, &err);

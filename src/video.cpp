@@ -309,17 +309,42 @@ bool video::isOpened() const {
 }
 
 void video::setResize(int w, int h) {
+    if (dst_width == w && dst_height == h) {
+        return;  // no change required
+    }
+
     dst_width = w;
     dst_height = h;
-    swsctx = sws_getCachedContext(swsctx, codec->width, codec->height, codec->pix_fmt,
-            dst_width, dst_height, dst_pix_fmt, SWS_BICUBIC, nullptr, nullptr, nullptr);
+
+    // free old sws context
+    if (swsctx) {
+        sws_freeContext(swsctx);
+        swsctx = nullptr;
+    }
+
+    swsctx = sws_getContext(
+        codec->width, codec->height, codec->pix_fmt,
+        dst_width, dst_height, dst_pix_fmt,
+        SWS_BICUBIC, nullptr, nullptr, nullptr
+    );
+
     if (!swsctx) {
-        fprintf(stderr, "fail to sws_getCachedContext\n");
+        fprintf(stderr, "fail to sws_getContext\n");
         return;
     }
 
-    if (alloc) av_freep(&frame->data[0]);
-    av_image_alloc(frame->data, frame->linesize, dst_width, dst_height, dst_pix_fmt, 16);
+    // realloc frame buffer
+    if (alloc && frame->data[0]) {
+        av_freep(&frame->data[0]);
+    }
+
+    int ret = av_image_alloc(frame->data, frame->linesize,
+                             dst_width, dst_height, dst_pix_fmt, 16);
+    if (ret < 0) {
+        fprintf(stderr, "fail to av_image_alloc\n");
+        alloc = false;
+        return;
+    }
     alloc = true;
 }
 

@@ -463,6 +463,12 @@ int main(int argc, char *argv[]) {
                         }
 
                         error_buffer = realloc_error;
+#ifdef HAVE_OPENCL
+                        char_indices = realloc_indices;
+                        fg_colors = realloc_fg_colors;
+                        bg_colors = realloc_bg_colors;
+                        needs_update = realloc_needs_update;
+#endif
 
                         // clear reallocated buffers
                         memset(error_buffer, 0, term_video_chars * 3 * sizeof(float));
@@ -1008,11 +1014,32 @@ int main(int argc, char *argv[]) {
                 fprintf(stderr, "print buffer full at %d bytes\n", written);
                 break;
             }
-            print_ret = snprintf(print_buf + written, print_buffer_size - written,
-                                         "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  fps:  %6.2f  |  avg_fps:  %6.2f  |  render:  %6.2fms  |  print:  %6.2fms  |  cursor:  %5d  |  chars:  %5.1fk  |  dropped:  %5d  |  curr_frame:  %5d                ",
-                                         msg_y+1, 1, static_cast<double>(frametimes.size()) * 1000000.0 / frame10_time, avg_fps,
-                                         static_cast<double>(rendering_time) / 1000.0, static_cast<double>(printing_time) / 1000.0,
-                                         cursor_moves, written/1000.0, dropped, curr_frame);
+            // different formatting based on terminal width
+            if (curr_w >= 160) {
+                print_ret = snprintf(print_buf + written, print_buffer_size - written,
+                    "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  fps: %6.2f  |  avg: %6.2f  |  render: %6.2fms  |  print: %6.2fms  |  cursor: %5d  |  chars: %5.1fk  |  dropped: %5d  |  frame: %5d                ",
+                    msg_y+1, 1,
+                    static_cast<double>(frametimes.size()) * 1000000.0 / frame10_time, avg_fps,
+                    static_cast<double>(rendering_time) / 1000.0, static_cast<double>(printing_time) / 1000.0,
+                    cursor_moves, written/1000.0, dropped, curr_frame);
+            } else if (curr_w >= 120) {
+                print_ret = snprintf(print_buf + written, print_buffer_size - written,
+                    "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  fps: %6.2f  |  render: %5.1fms  |  print: %5.1fms  |  dropped: %4d  |  frame: %5d          ",
+                    msg_y+1, 1,
+                    static_cast<double>(frametimes.size()) * 1000000.0 / frame10_time,
+                    static_cast<double>(rendering_time) / 1000.0, static_cast<double>(printing_time) / 1000.0,
+                    dropped, curr_frame);
+            } else if (curr_w >= 80) {
+                print_ret = snprintf(print_buf + written, print_buffer_size - written,
+                    "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  fps: %5.1f  |  frame: %5d  |  dropped: %4d      ",
+                    msg_y+1, 1,
+                    static_cast<double>(frametimes.size()) * 1000000.0 / frame10_time,
+                    curr_frame, dropped);
+            } else {
+                print_ret = snprintf(print_buf + written, print_buffer_size - written,
+                    "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  %5d    ",
+                    msg_y+1, 1, curr_frame);
+            }
             if (print_ret > 0 && print_ret < print_buffer_size - written)
                 written += print_ret;
 
