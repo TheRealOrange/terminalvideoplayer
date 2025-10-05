@@ -514,32 +514,54 @@ __kernel void process_characters(
     needs_update[char_idx] = (diff >= diffthreshold) ? true : false;
 
     if (diff >= diffthreshold) {
-        // Find best character
+        // find best character using MSE
+        // cpu version just uses minmax
         int cases[DIFF_CASES];
         for (int c = 0; c < DIFF_CASES; c++) cases[c] = 0;
 
-        for (int k = 0; k < 3; k++) {
-            for (int case_it = 0; case_it < DIFF_CASES; case_it++) {
-                int min_fg = 256, min_bg = 256;
-                int max_fg = 0, max_bg = 0;
+        for (int case_it = 0; case_it < DIFF_CASES; case_it++) {
+            // calculate average colors for fg and bg
+            float linear_fg[3] = {0, 0, 0};
+            float linear_bg[3] = {0, 0, 0};
+            int bg_count = 0, fg_count = 0;
 
-                for (int i = 0; i < CHAR_Y; i++) {
-                    for (int j = 0; j < CHAR_X; j++) {
-                        int pmap_idx = case_it * CHAR_Y * CHAR_X + i * CHAR_X + j;
-                        if (pixelmap[pmap_idx]) {
-                            min_fg = min(min_fg, pixel[i][j][k]);
-                            max_fg = max(max_fg, pixel[i][j][k]);
-                        } else {
-                            min_bg = min(min_bg, pixel[i][j][k]);
-                            max_bg = max(max_bg, pixel[i][j][k]);
-                        }
+            for (int i = 0; i < CHAR_Y; i++) {
+                for (int j = 0; j < CHAR_X; j++) {
+                    int pmap_idx = case_it * CHAR_Y * CHAR_X + i * CHAR_X + j;
+                    if (pixelmap[pmap_idx]) {
+                        for (int k = 0; k < 3; k++)
+                            linear_fg[k] += srgb_to_linear(pixel[i][j][k]);
+                        fg_count++;
+                    } else {
+                        for (int k = 0; k < 3; k++)
+                            linear_bg[k] += srgb_to_linear(pixel[i][j][k]);
+                        bg_count++;
                     }
                 }
-                cases[case_it] = max(cases[case_it], max(max_fg - min_fg, max_bg - min_bg));
             }
+
+            int avg_fg[3], avg_bg[3];
+            for (int k = 0; k < 3; k++) {
+                avg_fg[k] = linear_to_srgb(linear_fg[k] / fg_count);
+                avg_bg[k] = linear_to_srgb(linear_bg[k] / bg_count);
+            }
+
+            // calculate MSE
+            int mse = 0;
+            for (int i = 0; i < CHAR_Y; i++) {
+                for (int j = 0; j < CHAR_X; j++) {
+                    int pmap_idx = case_it * CHAR_Y * CHAR_X + i * CHAR_X + j;
+                    int* target = pixelmap[pmap_idx] ? avg_fg : avg_bg;
+                    for (int k = 0; k < 3; k++) {
+                        int diff = pixel[i][j][k] - target[k];
+                        mse += diff * diff;
+                    }
+                }
+            }
+            cases[case_it] = mse;
         }
 
-        int mindiff = 256;
+        int mindiff = INT_MAX;
         int case_min = 0;
         for (int c = 0; c < DIFF_CASES; c++) {
             if (cases[c] < mindiff) {

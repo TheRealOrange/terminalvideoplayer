@@ -851,6 +851,7 @@ int main(int argc, char *argv[]) {
 
                             // calculate for each unicode character, the max error between what
                             // will be printed on screen and the actual video pixel if the character were used
+                            // for the cpu version, just use max, the opencl version can use MSE
                             for (int k = 0; k < 3; k++) {
                                 for (int case_it = 0; case_it < (int)std::size(cases); case_it++) {
                                     min_fg = 256;
