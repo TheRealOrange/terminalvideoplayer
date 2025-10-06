@@ -7,46 +7,58 @@
 
 #include <cstring>
 #ifdef _WIN32
-    #include <SDL.h>
+#include <SDL.h>
 #else
-    #include <SDL2/SDL.h>
+#include <SDL2/SDL.h>
 #endif
 
 extern "C" {
-    #include <libavformat/avformat.h>
-    #include <libavcodec/avcodec.h>
-    #include <libavutil/imgutils.h>
-    #include <libswscale/swscale.h>
-    #include <libswresample/swresample.h>
+#include <libavformat/avformat.h>
+#include <libavcodec/avcodec.h>
+#include <libavutil/imgutils.h>
+#include <libswscale/swscale.h>
+#include <libswresample/swresample.h>
 }
 
 class video {
 public:
     video(const char filename[], int w, int h, bool enable_audio = true);
-    explicit video(const char filename[]) : video(filename, -1, -1, true) {};
+
+    explicit video(const char filename[]) : video(filename, -1, -1, true) {
+    };
+
     ~video();
 
     void setResize(int w, int h);
+
     [[nodiscard]] bool isOpened() const;
+
     [[nodiscard]] double get_fps() const;
+
     [[nodiscard]] int get_width() const;
+
     [[nodiscard]] int get_height() const;
+
     [[nodiscard]] int get_dst_buf_size() const;
+
     [[nodiscard]] bool is_end_of_stream() const;
-    int get_frame(int dst_w, int dst_h, const char* dst_frame);
+
+    int get_frame(int dst_w, int dst_h, const char *dst_frame);
 
     // audio methods
     [[nodiscard]] bool has_audio() const;
+
     [[nodiscard]] int get_audio_sample_rate() const;
+
     [[nodiscard]] int get_audio_channels() const;
 
 private:
-    AVFormatContext* inctx = nullptr;
-    AVCodecContext* codec = nullptr;
-    const AVCodec* vcodec = nullptr;
-    AVStream* vstrm = nullptr;
-    AVFrame* frame = nullptr;
-    SwsContext* swsctx = nullptr;
+    AVFormatContext *inctx = nullptr;
+    AVCodecContext *codec = nullptr;
+    const AVCodec *vcodec = nullptr;
+    AVStream *vstrm = nullptr;
+    AVFrame *frame = nullptr;
+    SwsContext *swsctx = nullptr;
     bool opened = false;
 
     int vstrm_idx;
@@ -56,9 +68,9 @@ private:
     int dst_width;
     int dst_height;
 
-    AVFrame* decframe = nullptr;
+    AVFrame *decframe = nullptr;
     bool end_of_stream_pkt = false, end_of_stream_enc = false;
-    AVPacket* pkt = nullptr;
+    AVPacket *pkt = nullptr;
 
     bool alloc = false;
 
@@ -66,16 +78,15 @@ private:
     char errbuf[200]{};
 
     // audio handling members
-    AVCodecContext* audio_codec = nullptr;
-    const AVCodec* acodec = nullptr;
-    AVStream* astrm = nullptr;
+    AVCodecContext *audio_codec = nullptr;
+    const AVCodec *acodec = nullptr;
+    AVStream *astrm = nullptr;
     int astrm_idx = -1;
-    AVFrame* audio_frame = nullptr;
-    SwrContext* swr_ctx = nullptr;
+    AVFrame *audio_frame = nullptr;
+    SwrContext *swr_ctx = nullptr;
     bool audio_available = false;
 
-    friend void audio_callback(void* userdata, uint8_t* stream, int len);
-
+    friend void audio_callback(void *userdata, uint8_t *stream, int len);
 };
 
 

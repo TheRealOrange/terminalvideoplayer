@@ -19,28 +19,30 @@
 class OpenCLProc {
 public:
   OpenCLProc();
+
   ~OpenCLProc();
 
   bool initialize();
+
   bool isInitialized() const { return initialized; }
   std::string getDeviceName() const { return device_name; }
 
   // Process entire frame on GPU
   void processFrame(
-      const char* frame,
-      const char* old_frame,
-      char* output_frame,
-      int width,
-      int height,
-      int char_width,
-      int char_height,
-      int diffthreshold,
-      bool refresh,
-      // Output arrays
-      int* char_indices,    // which character to use
-      int* fg_colors,       // RGB foreground colors (packed)
-      int* bg_colors,       // RGB background colors (packed)
-      bool* needs_update    // which characters need updating
+    const char *frame,
+    const char *old_frame,
+    char *output_frame,
+    int width,
+    int height,
+    int char_width,
+    int char_height,
+    int diffthreshold,
+    bool refresh,
+    // Output arrays
+    int *char_indices, // which character to use
+    int *fg_colors, // RGB foreground colors (packed)
+    int *bg_colors, // RGB background colors (packed)
+    bool *needs_update // which characters need updating
   );
 
 private:
@@ -66,7 +68,9 @@ private:
   size_t current_grid_size = 0;
 
   void cleanup();
+
   bool createBuffers(size_t frame_size, size_t grid_size);
+
   std::string getKernelSource();
 };
 

@@ -38,15 +38,15 @@ function(embed_opencl_kernel)
     cmake_parse_arguments(EOK "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
     # Validate required arguments
-    if(NOT EOK_INPUT_FILE)
+    if (NOT EOK_INPUT_FILE)
         message(FATAL_ERROR "INPUT_FILE is required")
-    endif()
-    if(NOT EOK_OUTPUT_HEADER)
+    endif ()
+    if (NOT EOK_OUTPUT_HEADER)
         message(FATAL_ERROR "OUTPUT_HEADER is required")
-    endif()
-    if(NOT EOK_VARIABLE_NAME)
+    endif ()
+    if (NOT EOK_VARIABLE_NAME)
         message(FATAL_ERROR "VARIABLE_NAME is required")
-    endif()
+    endif ()
 
     # Get the directory of the output file
     get_filename_component(OUTPUT_DIR ${EOK_OUTPUT_HEADER} DIRECTORY)
@@ -55,9 +55,9 @@ function(embed_opencl_kernel)
     file(MAKE_DIRECTORY ${OUTPUT_DIR})
 
     # Check if input file exists
-    if(NOT EXISTS ${EOK_INPUT_FILE})
+    if (NOT EXISTS ${EOK_INPUT_FILE})
         message(FATAL_ERROR "Input file does not exist: ${EOK_INPUT_FILE}")
-    endif()
+    endif ()
 
     # Convert file to header
     embed_text_file(${EOK_INPUT_FILE} ${EOK_OUTPUT_HEADER} ${EOK_VARIABLE_NAME})

@@ -11,7 +11,7 @@ check_ipo_supported(RESULT ipo_supported OUTPUT error)
 
 # optional opencl if found
 find_package(OpenCL)
-if(OpenCL_FOUND)
+if (OpenCL_FOUND)
     message(STATUS "opencl found: gpu acceleration enabled")
     add_compile_definitions(HAVE_OPENCL)
     set(OPENCL_SOURCES src/opencl_proc.cpp)
@@ -30,12 +30,12 @@ if(OpenCL_FOUND)
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
             "${CMAKE_CURRENT_SOURCE_DIR}/src/process_frame.cl"
     )
-else()
+else ()
     message(STATUS "opencl not found: building without GPU acceleration")
-endif()
+endif ()
 
 # ffmpeg libraries
-if(WIN32)
+if (WIN32)
     # windows
     # use find_package (vcpkg)
     find_package(SDL2 CONFIG REQUIRED)
@@ -50,7 +50,7 @@ if(WIN32)
     set(FFMPEG_LIBRARIES ${AVCODEC_LIBRARY} ${AVFORMAT_LIBRARY}
             ${AVUTIL_LIBRARY} ${SWSCALE_LIBRARY}
             ${SWRESAMPLE_LIBRARY})
-else()
+else ()
     # linux or macOS
     # use pkgconfig to fing ffmpeg and sdl
     find_package(PkgConfig REQUIRED)
@@ -62,7 +62,7 @@ else()
             libswresample
     )
     pkg_check_modules(SDL2 REQUIRED sdl2)
-endif()
+endif ()
 set(SOURCES src/main.cpp src/video.cpp ${OPENCL_SOURCES})
 
 add_executable(tvp ${SOURCES})
@@ -74,7 +74,7 @@ target_include_directories(tvp PRIVATE
 target_link_libraries(tvp PRIVATE ${FFMPEG_LIBRARIES} ${SDL2_LIBRARIES})
 target_link_directories(tvp PRIVATE ${FFMPEG_LIBRARY_DIRS} ${SDL2_LIBRARY_DIRS})
 
-if(WIN32)
+if (WIN32)
     # Windows system libraries required by static FFmpeg
     target_link_libraries(tvp PRIVATE
             ws2_32      # Winsock2 - networking functions
@@ -84,48 +84,48 @@ if(WIN32)
             mfuuid      # Media Foundation UUIDs
             strmiids    # DirectShow
     )
-    if(MINGW)
+    if (MINGW)
         target_link_options(tvp PRIVATE -static-libgcc -static-libstdc++ -static)
-    endif()
-endif()
+    endif ()
+endif ()
 
-if(OpenCL_FOUND)
+if (OpenCL_FOUND)
     target_include_directories(tvp PRIVATE ${OpenCL_INCLUDE_DIRS})
     target_link_libraries(tvp PRIVATE ${OpenCL_LIBRARIES})
-endif()
+endif ()
 
 target_compile_options(tvp PRIVATE -O3 -Wall -Wextra -ffast-math)
 
-if(ipo_supported)
+if (ipo_supported)
     set_target_properties(tvp PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
     message(STATUS "ipo/lto enabled for tvp")
-else()
+else ()
     message(STATUS "ipo/lto not supported: ${error}")
-endif()
+endif ()
 
 # Platform-specific settings
-if(WIN32)
+if (WIN32)
     # none for now
-elseif(APPLE)
+elseif (APPLE)
     # macOS-specific
     find_library(COREFOUNDATION_LIBRARY CoreFoundation)
-    if(COREFOUNDATION_LIBRARY)
+    if (COREFOUNDATION_LIBRARY)
         target_link_libraries(tvp PRIVATE ${COREFOUNDATION_LIBRARY})
-    endif()
-    if(OpenCL_FOUND)
+    endif ()
+    if (OpenCL_FOUND)
         target_link_libraries(tvp PRIVATE "-framework OpenCL")
-    endif()
-elseif(UNIX)
+    endif ()
+elseif (UNIX)
     # Linux-specific
     target_link_libraries(tvp PRIVATE pthread)
-endif()
+endif ()
 
 message(STATUS "build type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "ffmpeg libraries: ${FFMPEG_LIBRARIES}")
 message(STATUS "ffmpeg include dirs: ${FFMPEG_INCLUDE_DIRS}")
 message(STATUS "sdl2 libraries: ${SDL2_LIBRARIES}")
 message(STATUS "sdl2 include dirs: ${SDL2_INCLUDE_DIRS}")
-if(OpenCL_FOUND)
+if (OpenCL_FOUND)
     message(STATUS "opencl libraries: ${OpenCL_LIBRARIES}")
     message(STATUS "opencl include dirs: ${OpenCL_INCLUDE_DIRS}")
-endif()
+endif ()

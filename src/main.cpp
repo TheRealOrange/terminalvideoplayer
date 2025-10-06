@@ -60,20 +60,20 @@ void get_terminal_size(int &width, int &height) {
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
     CONSOLE_SCREEN_BUFFER_INFO csbi;
     GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
-    width = (int)(csbi.srWindow.Right-csbi.srWindow.Left+1);
-    height = (int)(csbi.srWindow.Bottom-csbi.srWindow.Top+1);
+    width = (int) (csbi.srWindow.Right - csbi.srWindow.Left + 1);
+    height = (int) (csbi.srWindow.Bottom - csbi.srWindow.Top + 1);
 #else
     int result;
     struct winsize w{};
     //credit https://github.com/sindresorhus/macos-term-size for the macos terminal code
 #if defined(__APPLE__)
     int tty_fd = open("/dev/tty", O_EVTONLY | O_NONBLOCK);
-        if (tty_fd == -1) {
-            fprintf(stderr, "Opening `/dev/tty` failed (%d): %s\n", errno, strerror(errno));
-            return;
-        }
-        result = ioctl(tty_fd, TIOCGWINSZ, &w);
-        close(tty_fd);
+    if (tty_fd == -1) {
+        fprintf(stderr, "Opening `/dev/tty` failed (%d): %s\n", errno, strerror(errno));
+        return;
+    }
+    result = ioctl(tty_fd, TIOCGWINSZ, &w);
+    close(tty_fd);
 #elif defined(__linux__)
     result = ioctl(fileno(stdout), TIOCGWINSZ, &w);
 #endif // MacOS/Linux
@@ -109,7 +109,7 @@ int cursor_moves = 0;
 std::mutex render_buffer_mutex;
 std::condition_variable buffer_ready_cv;
 // double-buffering for write thread
-char* render_buffer = nullptr;
+char *render_buffer = nullptr;
 int render_buffer_size = 0;
 int render_buffer_written = 0;
 // threading signals for next frame and shutdown
@@ -131,7 +131,7 @@ bool print_hit_rate = false;
 int diffthreshold = DEFAULT_DIFFTHRESHOLD;
 
 // char width scaling (assuming terminal chars are 2x1 hxw)
-int sx = CHAR_X, sy = CHAR_X*2;
+int sx = CHAR_X, sy = CHAR_X * 2;
 int skipy = sy / CHAR_Y, skipx = sx / CHAR_X;
 
 // function to intercept SIGINT such that we print the ANSI code to restore the cursor visibility
@@ -146,17 +146,18 @@ void terminateProgram([[maybe_unused]] int sig_num) {
 
     // sum total character renders
     long long total_chars = 0;
-    for (const long long i : char_usage) total_chars += i;
+    for (const long long i: char_usage) total_chars += i;
 
     video_stop = std::chrono::steady_clock::now();
     const long long total_video_time = std::chrono::duration_cast<std::chrono::microseconds>(
-            video_stop - video_start).count();
-    printf("\x1B[0m\x1B[%d;%dHframes: %6lld, dropped: %6lld,  total time: %5.2fs,  render time: %5.2fs,  printing time: %5.2fs,  chars rendered: %9lldk,  chars printed: %9lldk, cursor: %8lldk chars (%8lldk moves) \u001b[?25h",
-       msg_y+1, 1, curr_frame, dropped, (double) total_video_time / 1000000.0,
-       (double) total_render_time / 1000000.0,
-       (double) total_printing_time / 1000000.0,
-       total_chars / 1000ll, total_chars_printed.load() / 1000ll,
-       rendered_cursor_chars / 1000ll, rendered_cursor_moves / 1000ll);
+        video_stop - video_start).count();
+    printf(
+        "\x1B[0m\x1B[%d;%dHframes: %6lld, dropped: %6lld,  total time: %5.2fs,  render time: %5.2fs,  printing time: %5.2fs,  chars rendered: %9lldk,  chars printed: %9lldk, cursor: %8lldk chars (%8lldk moves) \u001b[?25h",
+        msg_y + 1, 1, curr_frame, dropped, (double) total_video_time / 1000000.0,
+        (double) total_render_time / 1000000.0,
+        (double) total_printing_time / 1000000.0,
+        total_chars / 1000ll, total_chars_printed.load() / 1000ll,
+        rendered_cursor_chars / 1000ll, rendered_cursor_moves / 1000ll);
 
     if (print_hit_rate) {
         int sorted_indices[DIFF_CASES];
@@ -171,7 +172,7 @@ void terminateProgram([[maybe_unused]] int sig_num) {
         for (int i = 0; i < DIFF_CASES; i++) {
             int idx = sorted_indices[i];
             if (char_usage[idx] > 0) {
-                double percentage = (double)char_usage[idx] * 100.0 / (double)total_chars;
+                double percentage = (double) char_usage[idx] * 100.0 / (double) total_chars;
                 printf("%2d. %11lld  (%6.2f%%)  %s\n",
                        i + 1, char_usage[idx], percentage, characters[idx]);
             }
@@ -207,7 +208,7 @@ static unsigned char linear_to_srgb_init(float v) {
     if (v <= 0.0031308f)
         v = v * 12.92f;
     else
-        v = 1.055f * powf(v, 1.0f/2.4f) - 0.055f;
+        v = 1.055f * powf(v, 1.0f / 2.4f) - 0.055f;
     return static_cast<unsigned char>(std::clamp(v * 255.0f, 0.0f, 255.0f));
 }
 
@@ -275,7 +276,7 @@ inline int perceptual_diff(const int r1, const int g1, const int b1, const int r
 #endif
 
 void write_thread_func() {
-    char* write_buffer_local = nullptr;
+    char *write_buffer_local = nullptr;
     int write_buffer_size_local = 0;
 
     while (write_thread_running) {
@@ -287,7 +288,7 @@ void write_thread_func() {
         if (frame_ready && render_buffer_written > 0) {
             // resize local buffer if needed
             if (!write_buffer_local || write_buffer_size_local < render_buffer_written) {
-                char* temp = static_cast<char*>(std::realloc(write_buffer_local, render_buffer_written));
+                char *temp = static_cast<char *>(std::realloc(write_buffer_local, render_buffer_written));
                 if (temp) {
                     write_buffer_local = temp;
                     write_buffer_size_local = render_buffer_written;
@@ -315,7 +316,7 @@ void write_thread_func() {
             std::chrono::time_point<std::chrono::steady_clock> print_end = std::chrono::steady_clock::now();
 
             int printing_time_local = (int) std::chrono::duration_cast<std::chrono::microseconds>(
-                    print_end - printtime).count();
+                print_end - printtime).count();
             last_printing_time.store(printing_time_local);
 
             // track the total amount we actually printed
@@ -352,7 +353,7 @@ int main(int argc, char *argv[]) {
 #endif
 
     // Parse command line arguments
-    const char* video_file = nullptr;
+    const char *video_file = nullptr;
     bool enable_opencl = true;
     bool enable_audio = true;
     for (int i = 1; i < argc; i++) {
@@ -384,11 +385,11 @@ int main(int argc, char *argv[]) {
         fflush(stdout);
         return 0;
     }
-// apparently macos uses std::__fs::filesystem
+    // apparently macos uses std::__fs::filesystem
 #if defined(__APPLE__)
     if (std::__fs::filesystem::exists(argv[1])) {
 #else
-    if (std::filesystem::exists(argv[1])) {
+        if (std::filesystem::exists(argv[1])) {
 #endif
 
         // if the diff threshold argument is specified, and is within range, use the specified diff
@@ -442,7 +443,7 @@ int main(int argc, char *argv[]) {
 
         // error buffer to store color errors so we can keep track and
         // diffuse color error to neighboring pixels
-        float *error_buffer;  // stores RGB error for next character
+        float *error_buffer; // stores RGB error for next character
 
         // printing buffer
         char *print_buf;
@@ -481,7 +482,7 @@ int main(int argc, char *argv[]) {
         write_thread = std::thread(write_thread_func);
 
         while (true) {
-            count++;      // count the actual number of frames printed
+            count++; // count the actual number of frames printed
             curr_frame++; // count the current frame we are on
 
             get_terminal_size(curr_w, curr_h);
@@ -506,8 +507,9 @@ int main(int argc, char *argv[]) {
 
                 // if the terminal size is invalid
                 if (small_dims[0] <= 0 || small_dims[1] <= 0) {
-                    printf("\x1B[%d;%dHterminal dimensions is too small! (%d, %d)                                                                    \n",
-                           msg_y+1, 1, curr_w, curr_h);
+                    printf(
+                        "\x1B[%d;%dHterminal dimensions is too small! (%d, %d)                                                                    \n",
+                        msg_y + 1, 1, curr_w, curr_h);
                     fflush(stdout);
                     exit(0);
                 }
@@ -545,17 +547,18 @@ int main(int argc, char *argv[]) {
                 cap.setResize(small_dims[0], small_dims[1]);
                 int video_height = cap.get_height() / sy;
                 int video_width = cap.get_width() / sx;
-                int term_video_chars = video_width*video_height;
+                int term_video_chars = video_width * video_height;
 
                 // reallocate up old frame data if they were allocated
                 if (alloc) {
-                    auto* realloc_frame = static_cast<char *>(std::realloc(frame, cap.get_dst_buf_size()));
-                    auto* realloc_old = static_cast<char *>(std::realloc(old, cap.get_dst_buf_size()));
-                    print_buffer_size = curr_w*curr_h * 60;
-                    auto* realloc_print_buf = static_cast<char *>(std::realloc(print_buf, print_buffer_size));
-                    auto* realloc_error = static_cast<float*>(std::realloc(error_buffer, term_video_chars*3*sizeof(float)));
+                    auto *realloc_frame = static_cast<char *>(std::realloc(frame, cap.get_dst_buf_size()));
+                    auto *realloc_old = static_cast<char *>(std::realloc(old, cap.get_dst_buf_size()));
+                    print_buffer_size = curr_w * curr_h * 60;
+                    auto *realloc_print_buf = static_cast<char *>(std::realloc(print_buf, print_buffer_size));
+                    auto *realloc_error = static_cast<float *>(std::realloc(
+                        error_buffer, term_video_chars * 3 * sizeof(float)));
 
-                    char* realloc_render_buf = nullptr;
+                    char *realloc_render_buf = nullptr;
                     {
                         std::lock_guard<std::mutex> lock(render_buffer_mutex);
                         realloc_render_buf = static_cast<char *>(std::realloc(render_buffer, print_buffer_size));
@@ -563,15 +566,19 @@ int main(int argc, char *argv[]) {
 
 #ifdef HAVE_OPENCL
                     // realloc opencl buffers
-                    auto *realloc_indices = static_cast<int *>(std::realloc(char_indices, term_video_chars * sizeof(int)));
-                    auto *realloc_fg_colors = static_cast<int *>(std::realloc(fg_colors, term_video_chars * sizeof(int)));
-                    auto *realloc_bg_colors = static_cast<int *>(std::realloc(bg_colors, term_video_chars * sizeof(int)));
-                    auto *realloc_needs_update = static_cast<bool *>(std::realloc(needs_update, term_video_chars * sizeof(bool)));
+                    auto *realloc_indices = static_cast<int *>(std::realloc(
+                        char_indices, term_video_chars * sizeof(int)));
+                    auto *realloc_fg_colors = static_cast<int *>(
+                        std::realloc(fg_colors, term_video_chars * sizeof(int)));
+                    auto *realloc_bg_colors = static_cast<int *>(
+                        std::realloc(bg_colors, term_video_chars * sizeof(int)));
+                    auto *realloc_needs_update = static_cast<bool *>(std::realloc(
+                        needs_update, term_video_chars * sizeof(bool)));
 
                     if (realloc_frame && realloc_old && realloc_print_buf && realloc_error
                         && realloc_indices && realloc_fg_colors && realloc_bg_colors && realloc_needs_update) {
 #else
-                    if (realloc_frame && realloc_old && realloc_print_buf && realloc_error) {
+                        if (realloc_frame && realloc_old && realloc_print_buf && realloc_error) {
 #endif
                         frame = realloc_frame;
                         old = realloc_old;
@@ -638,10 +645,10 @@ int main(int argc, char *argv[]) {
                     // allocate print buffer
                     // worst case: every single character update with color codes
                     // and every single character needs a cursor move
-                    print_buffer_size = curr_w*curr_h * 60;  // 60 bytes per char with safety margin
+                    print_buffer_size = curr_w * curr_h * 60; // 60 bytes per char with safety margin
                     print_buf = static_cast<char *>(malloc(print_buffer_size));
                     // acquire lock and allocate render buffer
-                    char* temp_render_buffer = nullptr;
+                    char *temp_render_buffer = nullptr;
                     {
                         std::lock_guard<std::mutex> lock(render_buffer_mutex);
                         render_buffer_size = print_buffer_size;
@@ -650,19 +657,19 @@ int main(int argc, char *argv[]) {
                     }
 
                     // allocate dithering error buffer
-                    error_buffer = static_cast<float*>(std::calloc(term_video_chars*3,sizeof(float)));
+                    error_buffer = static_cast<float *>(std::calloc(term_video_chars * 3, sizeof(float)));
 
 #ifdef HAVE_OPENCL
                     // Allocate OpenCL buffers
-                    char_indices = static_cast<int*>(std::malloc(term_video_chars*sizeof(int)));
-                    fg_colors = static_cast<int*>(std::malloc(term_video_chars*sizeof(int)));
-                    bg_colors = static_cast<int*>(std::malloc(term_video_chars*sizeof(int)));
-                    needs_update = static_cast<bool*>(std::malloc(term_video_chars*sizeof(bool)));
+                    char_indices = static_cast<int *>(std::malloc(term_video_chars * sizeof(int)));
+                    fg_colors = static_cast<int *>(std::malloc(term_video_chars * sizeof(int)));
+                    bg_colors = static_cast<int *>(std::malloc(term_video_chars * sizeof(int)));
+                    needs_update = static_cast<bool *>(std::malloc(term_video_chars * sizeof(bool)));
 
                     if (frame && old && print_buf && error_buffer
                         && char_indices && fg_colors && bg_colors && needs_update) {
 #else
-                    if (frame && old && print_buf && error_buffer) {
+                        if (frame && old && print_buf && error_buffer) {
 #endif
                         alloc = true;
                     } else {
@@ -692,7 +699,7 @@ int main(int argc, char *argv[]) {
                 }
 
                 // set the entire screen to black
-                written = snprintf(print_buf, print_buffer_size,"\x1B[0;0H\x1B[48;2;0;0;0m");
+                written = snprintf(print_buf, print_buffer_size, "\x1B[0;0H\x1B[48;2;0;0;0m");
                 if (written > 0 && written < print_buffer_size) {
                     for (int i = 0; i < curr_w * curr_h; i++) {
                         if (written >= print_buffer_size - 1) {
@@ -727,8 +734,10 @@ int main(int argc, char *argv[]) {
 
             // compute time taken for the previous frame
             stop = std::chrono::steady_clock::now();
-            elapsed = static_cast<int>(std::chrono::duration_cast<std::chrono::microseconds>(stop - video_start).count());
-            int frame_time = static_cast<int>(std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count());
+            elapsed = static_cast<int>(std::chrono::duration_cast<std::chrono::microseconds>(stop - video_start).
+                count());
+            int frame_time = static_cast<int>(std::chrono::duration_cast<std::chrono::microseconds>(stop - start).
+                count());
             start = std::chrono::steady_clock::now();
 
             // compute the average fps, as well as the fps of the last N frames
@@ -744,8 +753,9 @@ int main(int argc, char *argv[]) {
             // if there is still time before the next frame, wait a bit
             if (curr_frame * period - elapsed > 0)
                 std::this_thread::sleep_until(
-                        std::chrono::microseconds(curr_frame * period - elapsed - avg_frame_times_sum / frame_times.size()) +
-                        stop);
+                    std::chrono::microseconds(curr_frame * period - elapsed - avg_frame_times_sum / frame_times.size())
+                    +
+                    stop);
             else {
                 // if the next frame is overdue, skip the frame and wait till the earliest non-overdue frame
                 skip = static_cast<double>(elapsed) / static_cast<double>(period) - static_cast<double>(curr_frame);
@@ -753,7 +763,8 @@ int main(int argc, char *argv[]) {
                 dropped += std::floor(skip);
                 curr_frame += std::floor(skip);
                 std::this_thread::sleep_until(
-                        std::chrono::microseconds(curr_frame * period - avg_frame_times_sum / frame_times.size()) + video_start);
+                    std::chrono::microseconds(curr_frame * period - avg_frame_times_sum / frame_times.size()) +
+                    video_start);
             }
 
             // set the previous pixel bg colour and font colour to a large value to force the ansi colour command to be printed
@@ -814,8 +825,10 @@ int main(int argc, char *argv[]) {
 
                             bgsame = false;
                             pixelsame = false;
-                            diffbg = abs(prevpixelbg[2] - pixelbg[2]) + abs(prevpixelbg[1] - pixelbg[1]) + abs(prevpixelbg[0] - pixelbg[0]);
-                            diffpixel = abs(prevpixel[2] - pixelchar[2]) + abs(prevpixel[1] - pixelchar[1]) + abs(prevpixel[0] - pixelchar[0]);
+                            diffbg = abs(prevpixelbg[2] - pixelbg[2]) + abs(prevpixelbg[1] - pixelbg[1]) + abs(
+                                         prevpixelbg[0] - pixelbg[0]);
+                            diffpixel = abs(prevpixel[2] - pixelchar[2]) + abs(prevpixel[1] - pixelchar[1]) + abs(
+                                            prevpixel[0] - pixelchar[0]);
 
                             if (diffbg < CHANGE_THRESHOLD) {
                                 for (int k = 0; k < 3; k++) pixelbg[k] = prevpixelbg[k];
@@ -838,7 +851,7 @@ int main(int argc, char *argv[]) {
                                     break;
                                 }
                                 print_ret = snprintf(print_buf + written, print_buffer_size - written,
-                                    "\x1B[%d;%dH", ay+1, x+1);
+                                                     "\x1B[%d;%dH", ay + 1, x + 1);
                                 if (print_ret > 0 && print_ret < print_buffer_size - written) {
                                     written += print_ret;
                                     rendered_cursor_moves++;
@@ -852,20 +865,20 @@ int main(int argc, char *argv[]) {
                             }
                             if (!bgsame && !pixelsame)
                                 print_ret = snprintf(print_buf + written, print_buffer_size - written,
-                                    "\x1B[48;2;%d;%d;%d;38;2;%d;%d;%dm%s",
-                                    pixelbg[2], pixelbg[1], pixelbg[0],
-                                    pixelchar[2], pixelchar[1], pixelchar[0], shapechar);
+                                                     "\x1B[48;2;%d;%d;%d;38;2;%d;%d;%dm%s",
+                                                     pixelbg[2], pixelbg[1], pixelbg[0],
+                                                     pixelchar[2], pixelchar[1], pixelchar[0], shapechar);
                             else if (!bgsame)
                                 print_ret = snprintf(print_buf + written, print_buffer_size - written,
-                                    "\x1B[48;2;%d;%d;%dm%s",
-                                    pixelbg[2], pixelbg[1], pixelbg[0], shapechar);
+                                                     "\x1B[48;2;%d;%d;%dm%s",
+                                                     pixelbg[2], pixelbg[1], pixelbg[0], shapechar);
                             else if (!pixelsame)
                                 print_ret = snprintf(print_buf + written, print_buffer_size - written,
-                                    "\x1B[38;2;%d;%d;%dm%s",
-                                    pixelchar[2], pixelchar[1], pixelchar[0], shapechar);
+                                                     "\x1B[38;2;%d;%d;%dm%s",
+                                                     pixelchar[2], pixelchar[1], pixelchar[0], shapechar);
                             else
                                 print_ret = snprintf(print_buf + written, print_buffer_size - written,
-                                    "%s", shapechar);
+                                                     "%s", shapechar);
 
                             if (print_ret > 0 && print_ret < print_buffer_size - written)
                                 written += print_ret;
@@ -896,11 +909,13 @@ int main(int argc, char *argv[]) {
                         for (int i = 0; i < CHAR_Y; i++)
                             for (int j = 0; j < CHAR_X; j++)
                                 for (int k = 0; k < 3; k++) {
-                                    pixel[i][j][k] = static_cast<unsigned char>(*(row[i] + (x * sx + j * skipx) * 3 + k));
+                                    pixel[i][j][k] = static_cast<unsigned char>(*(
+                                        row[i] + (x * sx + j * skipx) * 3 + k));
 
                                     // apply error from previous character
                                     int err_idx = (ay * video_width + x) * 3 + k;
-                                    pixel[i][j][k] = std::clamp(pixel[i][j][k] + static_cast<int>(error_buffer[err_idx]),0, 255);
+                                    pixel[i][j][k] = std::clamp(
+                                        pixel[i][j][k] + static_cast<int>(error_buffer[err_idx]), 0, 255);
                                 }
 
                         diff = 0;
@@ -918,9 +933,9 @@ int main(int argc, char *argv[]) {
                                     int old_r = static_cast<unsigned char>(*(oldrow[i] + (x * sx + j * skipx) * 3 + 2));
 
                                     diff = std::max(diff, perceptual_diff(
-                                        old_r, old_g, old_b,
-                                        pixel[i][j][2], pixel[i][j][1], pixel[i][j][0]
-                                    ));
+                                                        old_r, old_g, old_b,
+                                                        pixel[i][j][2], pixel[i][j][1], pixel[i][j][0]
+                                                    ));
                                 }
                         }
 
@@ -951,7 +966,8 @@ int main(int argc, char *argv[]) {
                                                 max_bg = std::max(max_bg, pixel[i][j][k]);
                                             }
                                         }
-                                    cases[case_it] = std::max(cases[case_it], std::max(max_fg - min_fg, max_bg - min_bg));
+                                    cases[case_it] = std::max(cases[case_it],
+                                                              std::max(max_fg - min_fg, max_bg - min_bg));
                                 }
                             }
 
@@ -1031,7 +1047,8 @@ int main(int argc, char *argv[]) {
                                 for (int i = 0; i < CHAR_Y; i++)
                                     for (int j = 0; j < CHAR_X; j++) {
                                         if (pixelmap[case_min][i * CHAR_X + j])
-                                            *(oldrow[i] + (x * sx + j * skipx) * 3 + k) = static_cast<char>(pixelchar[k]);
+                                            *(oldrow[i] + (x * sx + j * skipx) * 3 + k) = static_cast<char>(pixelchar[
+                                                k]);
                                         else
                                             *(oldrow[i] + (x * sx + j * skipx) * 3 + k) = static_cast<char>(pixelbg[k]);
                                     }
@@ -1061,7 +1078,8 @@ int main(int argc, char *argv[]) {
                                 if (ay + 1 < video_height) {
                                     error_buffer[err_idx_below] += total_error * 0.125f;
                                     if (x - 1 >= 0)
-                                        error_buffer[((ay + 1) * video_width + (x - 1)) * 3 + k] += total_error * 0.125f;
+                                        error_buffer[((ay + 1) * video_width + (x - 1)) * 3 + k] += total_error *
+                                                0.125f;
                                     if (x + 1 < video_width)
                                         error_buffer[err_idx_diag] += total_error * 0.125f;
                                 }
@@ -1070,11 +1088,11 @@ int main(int argc, char *argv[]) {
 #else
                                 // floyd-steinberg dithering
                                 if (x + 1 < video_width)
-                                    error_buffer[err_idx_right] += total_error * 0.4375f;  // 7/16 right
+                                    error_buffer[err_idx_right] += total_error * 0.4375f; // 7/16 right
                                 if (ay + 1 < video_height)
-                                    error_buffer[err_idx_below] += total_error * 0.3125f;   // 5/16 below
+                                    error_buffer[err_idx_below] += total_error * 0.3125f; // 5/16 below
                                 if (x + 1 < video_width && ay + 1 < video_height)
-                                    error_buffer[err_idx_diag] += total_error * 0.25f;      // 4/16 diagonal
+                                    error_buffer[err_idx_diag] += total_error * 0.25f; // 4/16 diagonal
 #endif
                             }
 
@@ -1087,7 +1105,7 @@ int main(int argc, char *argv[]) {
                                     break;
                                 }
                                 print_ret = snprintf(print_buf + written, print_buffer_size - written,
-                                "\x1B[%d;%dH", ay+1, x+1);
+                                                     "\x1B[%d;%dH", ay + 1, x + 1);
                                 if (print_ret > 0 && print_ret < print_buffer_size - written) {
                                     written += print_ret;
                                     rendered_cursor_moves++;
@@ -1104,20 +1122,20 @@ int main(int argc, char *argv[]) {
                             }
                             if (!bgsame && !pixelsame)
                                 print_ret = snprintf(print_buf + written, print_buffer_size - written,
-                                                        "\x1B[48;2;%d;%d;%d;38;2;%d;%d;%dm%s",
-                                                        pixelbg[2], pixelbg[1], pixelbg[0],
-                                                        pixelchar[2], pixelchar[1], pixelchar[0], shapechar);
+                                                     "\x1B[48;2;%d;%d;%d;38;2;%d;%d;%dm%s",
+                                                     pixelbg[2], pixelbg[1], pixelbg[0],
+                                                     pixelchar[2], pixelchar[1], pixelchar[0], shapechar);
                             else if (!bgsame)
                                 print_ret = snprintf(print_buf + written, print_buffer_size - written,
-                                                        "\x1B[48;2;%d;%d;%dm%s",
-                                                        pixelbg[2], pixelbg[1], pixelbg[0], shapechar);
+                                                     "\x1B[48;2;%d;%d;%dm%s",
+                                                     pixelbg[2], pixelbg[1], pixelbg[0], shapechar);
                             else if (!pixelsame)
                                 print_ret = snprintf(print_buf + written, print_buffer_size - written,
-                                                        "\x1B[38;2;%d;%d;%dm%s",
-                                                        pixelchar[2], pixelchar[1], pixelchar[0], shapechar);
+                                                     "\x1B[38;2;%d;%d;%dm%s",
+                                                     pixelchar[2], pixelchar[1], pixelchar[0], shapechar);
                             else
                                 print_ret = snprintf(print_buf + written, print_buffer_size - written,
-                                                        "%s", shapechar);
+                                                     "%s", shapechar);
 
                             if (print_ret > 0 && print_ret < print_buffer_size - written)
                                 written += print_ret;
@@ -1130,7 +1148,6 @@ int main(int argc, char *argv[]) {
                                 r++;
                             }
                         }
-
                     }
                 }
 
@@ -1139,7 +1156,8 @@ int main(int argc, char *argv[]) {
 #endif
             refresh = false;
             render_end = std::chrono::steady_clock::now();
-            rendering_time = (int) std::chrono::duration_cast<std::chrono::microseconds>(render_end - render_start).count();
+            rendering_time = (int) std::chrono::duration_cast<std::chrono::microseconds>(render_end - render_start).
+                    count();
             total_render_time += rendering_time;
             // print the fps, avg fps, dropped frames, etc. at the bottom of the video
             if (written >= print_buffer_size - 1) {
@@ -1149,29 +1167,36 @@ int main(int argc, char *argv[]) {
             // different formatting based on terminal width
             if (curr_w >= 153) {
                 print_ret = snprintf(print_buf + written, print_buffer_size - written,
-                    "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  fps: %6.2f  |  avg: %6.2f  |  render: %7.2fms  |  print: %7.2fms  |  cursor: %5d  |  chars: %6.1fk  |  dropped: %7lld  |  frame: %7lld   ",
-                    msg_y+1, 1,
-                    static_cast<double>(frame_times.size()) * 1000000.0 / static_cast<double>(avg_frame_times_sum), avg_fps,
-                    static_cast<double>(rendering_time) / 1000.0, static_cast<double>(printing_time) / 1000.0,
-                    cursor_moves, written/1000.0, dropped, curr_frame);
+                                     "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  fps: %6.2f  |  avg: %6.2f  |  render: %7.2fms  |  print: %7.2fms  |  cursor: %5d  |  chars: %6.1fk  |  dropped: %7lld  |  frame: %7lld   ",
+                                     msg_y + 1, 1,
+                                     static_cast<double>(frame_times.size()) * 1000000.0 / static_cast<double>(
+                                         avg_frame_times_sum), avg_fps,
+                                     static_cast<double>(rendering_time) / 1000.0,
+                                     static_cast<double>(printing_time) / 1000.0,
+                                     cursor_moves, written / 1000.0, dropped, curr_frame);
             } else if (curr_w >= 98) {
                 print_ret = snprintf(print_buf + written, print_buffer_size - written,
-                    "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  fps: %6.2f  |  render: %6.1fms  |  print: %6.1fms  |  dropped: %7lld  |  frame: %7lld   ",
-                    msg_y+1, 1,
-                    static_cast<double>(frame_times.size()) * 1000000.0 / static_cast<double>(avg_frame_times_sum),
-                    static_cast<double>(rendering_time) / 1000.0, static_cast<double>(printing_time) / 1000.0,
-                    dropped, curr_frame);
+                                     "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  fps: %6.2f  |  render: %6.1fms  |  print: %6.1fms  |  dropped: %7lld  |  frame: %7lld   ",
+                                     msg_y + 1, 1,
+                                     static_cast<double>(frame_times.size()) * 1000000.0 / static_cast<double>(
+                                         avg_frame_times_sum),
+                                     static_cast<double>(rendering_time) / 1000.0,
+                                     static_cast<double>(printing_time) / 1000.0,
+                                     dropped, curr_frame);
             } else if (curr_w >= 56) {
                 print_ret = snprintf(print_buf + written, print_buffer_size - written,
-                    "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  fps: %5.1f  |  frame: %7lld  |  dropped: %7lld   ",
-                    msg_y+1, 1,
-                    static_cast<double>(frame_times.size()) * 1000000.0 / static_cast<double>(avg_frame_times_sum),
-                    curr_frame, dropped);
+                                     "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  fps: %5.1f  |  frame: %7lld  |  dropped: %7lld   ",
+                                     msg_y + 1, 1,
+                                     static_cast<double>(frame_times.size()) * 1000000.0 / static_cast<double>(
+                                         avg_frame_times_sum),
+                                     curr_frame, dropped);
             } else {
                 print_ret = snprintf(print_buf + written, print_buffer_size - written,
-                    "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  fps: %5.1f  |  frame: %7lld ",
-                    msg_y+1, 1, static_cast<double>(frame_times.size()) * 1000000.0 / static_cast<double>(avg_frame_times_sum),
-                    curr_frame);
+                                     "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  fps: %5.1f  |  frame: %7lld ",
+                                     msg_y + 1, 1,
+                                     static_cast<double>(frame_times.size()) * 1000000.0 / static_cast<double>(
+                                         avg_frame_times_sum),
+                                     curr_frame);
             }
             if (print_ret > 0 && print_ret < print_buffer_size - written)
                 written += print_ret;

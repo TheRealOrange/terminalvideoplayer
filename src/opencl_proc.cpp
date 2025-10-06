@@ -4,14 +4,11 @@
 #include "generated/kernel_source.h"
 #include <iostream>
 #include <cmath>
-
-#define CHAR_Y 8
-#define CHAR_X 8
-#define DIFF_CASES 19
 #define CHANGE_THRESHOLD 15
 #define DITHERING_DECAY 0.7f
 
-OpenCLProc::OpenCLProc() {}
+OpenCLProc::OpenCLProc() {
+}
 
 OpenCLProc::~OpenCLProc() {
     cleanup();
@@ -37,7 +34,7 @@ std::string OpenCLProc::getKernelSource() {
 }
 
 bool OpenCLProc::initialize() {
-    #include "pixelmap.h"  // Include to access the pixelmap data
+#include "pixelmap.h"  // Include to access the pixelmap data
     cl_int err;
     cl_platform_id platform;
 
@@ -89,12 +86,12 @@ bool OpenCLProc::initialize() {
 
     // Create kernel source with injected constants
     std::string kernel_src =
-        "#define CHAR_Y " + std::to_string(char_y) + "\n"
-        "#define CHAR_X " + std::to_string(char_x) + "\n"
-        "#define DIFF_CASES " + std::to_string(diff_cases) + "\n\n"
-        + getKernelSource();
+            "#define CHAR_Y " + std::to_string(char_y) + "\n"
+            "#define CHAR_X " + std::to_string(char_x) + "\n"
+            "#define DIFF_CASES " + std::to_string(diff_cases) + "\n\n"
+            + getKernelSource();
 
-    const char* src_ptr = kernel_src.c_str();
+    const char *src_ptr = kernel_src.c_str();
     size_t src_len = kernel_src.length();
 
     program = clCreateProgramWithSource(context, 1, &src_ptr, &src_len, &err);
@@ -108,7 +105,7 @@ bool OpenCLProc::initialize() {
     if (err != CL_SUCCESS) {
         char build_log[16384];
         clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG,
-                             sizeof(build_log), build_log, nullptr);
+                              sizeof(build_log), build_log, nullptr);
         std::cerr << "Failed to build program:\n" << build_log << std::endl;
         return false;
     }
@@ -131,8 +128,8 @@ bool OpenCLProc::initialize() {
 
     // Create buffer and copy data
     d_pixelmap = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                                 flat_pixelmap.size() * sizeof(int),
-                                 flat_pixelmap.data(), &err);
+                                flat_pixelmap.size() * sizeof(int),
+                                flat_pixelmap.data(), &err);
     if (err != CL_SUCCESS) {
         std::cerr << "Failed to create pixelmap buffer" << std::endl;
         return false;
@@ -196,19 +193,19 @@ bool OpenCLProc::createBuffers(size_t frame_size, size_t grid_size) {
 }
 
 void OpenCLProc::processFrame(
-    const char* frame,
-    const char* old_frame,
-    char* output_frame,
+    const char *frame,
+    const char *old_frame,
+    char *output_frame,
     int width,
     int height,
     int char_width,
     int char_height,
     int diffthreshold,
     bool refresh,
-    int* char_indices,
-    int* fg_colors,
-    int* bg_colors,
-    bool* needs_update
+    int *char_indices,
+    int *fg_colors,
+    int *bg_colors,
+    bool *needs_update
 ) {
     if (!initialized) return;
 
@@ -251,7 +248,7 @@ void OpenCLProc::processFrame(
     clSetKernelArg(kernel_process, 13, sizeof(cl_mem), &d_pixelmap);
 
     // Execute kernel
-    size_t global_work_size[2] = {(size_t)char_width, (size_t)char_height};
+    size_t global_work_size[2] = {(size_t) char_width, (size_t) char_height};
     err = clEnqueueNDRangeKernel(queue, kernel_process, 2, nullptr,
                                  global_work_size, nullptr, 0, nullptr, nullptr);
 
@@ -274,7 +271,7 @@ void OpenCLProc::processFrame(
                                bg_colors, 0, nullptr, nullptr);
     err |= clEnqueueReadBuffer(queue, d_needs_update, CL_TRUE, 0,
                                grid_size * sizeof(bool),
-                               (bool*)needs_update, 0, nullptr, nullptr);
+                               (bool *) needs_update, 0, nullptr, nullptr);
 
     if (err != CL_SUCCESS) {
         std::cerr << "Failed to download results from GPU" << std::endl;

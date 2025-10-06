@@ -8,7 +8,7 @@
 #include <queue>
 
 struct AudioBuffer {
-    std::queue<std::vector<uint8_t>> queue;
+    std::queue<std::vector<uint8_t> > queue;
     std::mutex mutex;
     size_t max_size = 30; // around 0.5 seconds of audio buffered
 };
@@ -16,18 +16,18 @@ struct AudioBuffer {
 static AudioBuffer audio_buffer;
 
 // sdl audio callback
-void audio_callback([[maybe_unused]] void* userdata, uint8_t* stream, int len) {
+void audio_callback([[maybe_unused]] void *userdata, uint8_t *stream, int len) {
     std::lock_guard<std::mutex> lock(audio_buffer.mutex);
 
     int bytes_written = 0;
     while (bytes_written < len && !audio_buffer.queue.empty()) {
-        auto& front = audio_buffer.queue.front();
-        int to_copy = std::min((int)front.size(), len - bytes_written);
+        auto &front = audio_buffer.queue.front();
+        int to_copy = std::min((int) front.size(), len - bytes_written);
 
         memcpy(stream + bytes_written, front.data(), to_copy);
         bytes_written += to_copy;
 
-        if (to_copy == (int)front.size()) {
+        if (to_copy == (int) front.size()) {
             audio_buffer.queue.pop();
         } else {
             front.erase(front.begin(), front.begin() + to_copy);
@@ -142,13 +142,13 @@ video::video(const char filename[], int w, int h, bool enable_audio) {
                         } else {
                             // Setup resampler
                             int ret_swr = swr_alloc_set_opts2(&swr_ctx,
-                                &audio_codec->ch_layout,
-                                AV_SAMPLE_FMT_S16,
-                                spec.freq,
-                                &audio_codec->ch_layout,
-                                audio_codec->sample_fmt,
-                                audio_codec->sample_rate,
-                                0, nullptr);
+                                                              &audio_codec->ch_layout,
+                                                              AV_SAMPLE_FMT_S16,
+                                                              spec.freq,
+                                                              &audio_codec->ch_layout,
+                                                              audio_codec->sample_fmt,
+                                                              audio_codec->sample_rate,
+                                                              0, nullptr);
 
                             if (ret_swr < 0) {
                                 fprintf(stderr, "failed to allocate resampler\n");
@@ -200,7 +200,7 @@ int video::get_audio_channels() const {
     return audio_available ? audio_codec->ch_layout.nb_channels : 0;
 }
 
-int video::get_frame(int dst_w, int dst_h, const char* dst_frame) {
+int video::get_frame(int dst_w, int dst_h, const char *dst_frame) {
     int ret;
     bool got_video_frame = false;
 
@@ -263,13 +263,13 @@ int video::get_frame(int dst_w, int dst_h, const char* dst_frame) {
 
                     int nb_channels = audio_codec->ch_layout.nb_channels;
                     std::vector<uint8_t> audio_data(out_samples * nb_channels * 2);
-                    uint8_t* out_ptr = audio_data.data();
+                    uint8_t *out_ptr = audio_data.data();
 
                     int converted = swr_convert(swr_ctx,
-                        &out_ptr,
-                        out_samples,
-                        (const uint8_t**)audio_frame->data,
-                        audio_frame->nb_samples);
+                                                &out_ptr,
+                                                out_samples,
+                                                (const uint8_t **) audio_frame->data,
+                                                audio_frame->nb_samples);
 
                     if (converted > 0) {
                         audio_data.resize(converted * nb_channels * 2);
@@ -297,12 +297,13 @@ int video::get_frame(int dst_w, int dst_h, const char* dst_frame) {
         }
 
         av_packet_unref(pkt);
-    } while(!got_video_frame && !end_of_stream_enc);
+    } while (!got_video_frame && !end_of_stream_enc);
 
     if (end_of_stream_enc) return -1;
 
     sws_scale(swsctx, decframe->data, decframe->linesize, 0, decframe->height, frame->data, frame->linesize);
-    av_image_copy_to_buffer((uint8_t *) dst_frame, get_dst_buf_size(), frame->data, frame->linesize, dst_pix_fmt, dst_width, dst_height, 1);
+    av_image_copy_to_buffer((uint8_t *) dst_frame, get_dst_buf_size(), frame->data, frame->linesize, dst_pix_fmt,
+                            dst_width, dst_height, 1);
 
     return 0;
 }
@@ -313,7 +314,7 @@ bool video::isOpened() const {
 
 void video::setResize(int w, int h) {
     if (dst_width == w && dst_height == h) {
-        return;  // no change required
+        return; // no change required
     }
 
     dst_width = w;
@@ -370,7 +371,7 @@ video::~video() {
 }
 
 int video::get_dst_buf_size() const {
-    return dst_height*dst_width*3+50;
+    return dst_height * dst_width * 3 + 50;
 }
 
 bool video::is_end_of_stream() const {
