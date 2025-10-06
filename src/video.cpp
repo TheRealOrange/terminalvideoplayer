@@ -40,7 +40,7 @@ void audio_callback([[maybe_unused]] void* userdata, uint8_t* stream, int len) {
     }
 }
 
-video::video(const char filename[], int w, int h) {
+video::video(const char filename[], int w, int h, bool enable_audio) {
     errbuf[0] = '\0';
     av_log_set_level(AV_LOG_ERROR);
     int ret = avformat_open_input(&inctx, filename, nullptr, nullptr);
@@ -97,72 +97,74 @@ video::video(const char filename[], int w, int h) {
 
     setResize(dst_width, dst_height);
 
-    // attempt to find audio stream
-    ret = av_find_best_stream(inctx, AVMEDIA_TYPE_AUDIO, -1, -1, &acodec, 0);
-    if (ret >= 0) {
-        astrm_idx = ret;
-        astrm = inctx->streams[astrm_idx];
+    // attempt to find audio stream if audio enabled
+    if (enable_audio) {
+        ret = av_find_best_stream(inctx, AVMEDIA_TYPE_AUDIO, -1, -1, &acodec, 0);
+        if (ret >= 0) {
+            astrm_idx = ret;
+            astrm = inctx->streams[astrm_idx];
 
-        audio_codec = avcodec_alloc_context3(acodec);
-        ret = avcodec_parameters_to_context(audio_codec, astrm->codecpar);
-        if (ret < 0) {
-            av_make_error_string(errbuf, sizeof(errbuf), ret);
-            fprintf(stderr, "fail to avcodec_parameters_to_context (audio): %s\n", errbuf);
-            avcodec_free_context(&audio_codec);
-            astrm_idx = -1;
-        } else {
-            ret = avcodec_open2(audio_codec, acodec, nullptr);
+            audio_codec = avcodec_alloc_context3(acodec);
+            ret = avcodec_parameters_to_context(audio_codec, astrm->codecpar);
             if (ret < 0) {
                 av_make_error_string(errbuf, sizeof(errbuf), ret);
-                fprintf(stderr, "fail to avcodec_open2 (audio): %s\n", errbuf);
+                fprintf(stderr, "fail to avcodec_parameters_to_context (audio): %s\n", errbuf);
                 avcodec_free_context(&audio_codec);
                 astrm_idx = -1;
             } else {
-                audio_frame = av_frame_alloc();
-                audio_available = true;
-
-                // init sdl audio
-                if (SDL_Init(SDL_INIT_AUDIO) < 0) {
-                    fprintf(stderr, "failed to init SDL audio: %s\n", SDL_GetError());
-                    audio_available = false;
+                ret = avcodec_open2(audio_codec, acodec, nullptr);
+                if (ret < 0) {
+                    av_make_error_string(errbuf, sizeof(errbuf), ret);
+                    fprintf(stderr, "fail to avcodec_open2 (audio): %s\n", errbuf);
+                    avcodec_free_context(&audio_codec);
+                    astrm_idx = -1;
                 } else {
-                    SDL_AudioSpec wanted_spec, spec;
-                    wanted_spec.freq = audio_codec->sample_rate;
-                    wanted_spec.format = AUDIO_S16SYS;
-                    wanted_spec.channels = audio_codec->ch_layout.nb_channels;
-                    wanted_spec.silence = 0;
-                    wanted_spec.samples = 1024;
-                    wanted_spec.callback = audio_callback;
-                    wanted_spec.userdata = this;
+                    audio_frame = av_frame_alloc();
+                    audio_available = true;
 
-                    if (SDL_OpenAudio(&wanted_spec, &spec) < 0) {
-                        fprintf(stderr, "failed to open audio: %s\n", SDL_GetError());
+                    // init sdl audio
+                    if (SDL_Init(SDL_INIT_AUDIO) < 0) {
+                        fprintf(stderr, "failed to init SDL audio: %s\n", SDL_GetError());
                         audio_available = false;
                     } else {
-                        // Setup resampler
-                        int ret_swr = swr_alloc_set_opts2(&swr_ctx,
-                            &audio_codec->ch_layout,
-                            AV_SAMPLE_FMT_S16,
-                            spec.freq,
-                            &audio_codec->ch_layout,
-                            audio_codec->sample_fmt,
-                            audio_codec->sample_rate,
-                            0, nullptr);
+                        SDL_AudioSpec wanted_spec, spec;
+                        wanted_spec.freq = audio_codec->sample_rate;
+                        wanted_spec.format = AUDIO_S16SYS;
+                        wanted_spec.channels = audio_codec->ch_layout.nb_channels;
+                        wanted_spec.silence = 0;
+                        wanted_spec.samples = 1024;
+                        wanted_spec.callback = audio_callback;
+                        wanted_spec.userdata = this;
 
-                        if (ret_swr < 0) {
-                            fprintf(stderr, "failed to allocate resampler\n");
+                        if (SDL_OpenAudio(&wanted_spec, &spec) < 0) {
+                            fprintf(stderr, "failed to open audio: %s\n", SDL_GetError());
                             audio_available = false;
-                            SDL_CloseAudio();
                         } else {
-                            ret_swr = swr_init(swr_ctx);
+                            // Setup resampler
+                            int ret_swr = swr_alloc_set_opts2(&swr_ctx,
+                                &audio_codec->ch_layout,
+                                AV_SAMPLE_FMT_S16,
+                                spec.freq,
+                                &audio_codec->ch_layout,
+                                audio_codec->sample_fmt,
+                                audio_codec->sample_rate,
+                                0, nullptr);
+
                             if (ret_swr < 0) {
-                                fprintf(stderr, "failed to initialize resampler\n");
+                                fprintf(stderr, "failed to allocate resampler\n");
                                 audio_available = false;
                                 SDL_CloseAudio();
-                                swr_free(&swr_ctx);
                             } else {
-                                swr_set_compensation(swr_ctx, 0, 0);
-                                SDL_PauseAudio(0); // start playing
+                                ret_swr = swr_init(swr_ctx);
+                                if (ret_swr < 0) {
+                                    fprintf(stderr, "failed to initialize resampler\n");
+                                    audio_available = false;
+                                    SDL_CloseAudio();
+                                    swr_free(&swr_ctx);
+                                } else {
+                                    swr_set_compensation(swr_ctx, 0, 0);
+                                    SDL_PauseAudio(0); // start playing
+                                }
                             }
                         }
                     }

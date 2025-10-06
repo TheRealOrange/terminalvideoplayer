@@ -22,8 +22,8 @@ extern "C" {
 
 class video {
 public:
-    video(const char filename[], int w, int h);
-    explicit video(const char filename[]) : video(filename, -1, -1) {};
+    video(const char filename[], int w, int h, bool enable_audio = true);
+    explicit video(const char filename[]) : video(filename, -1, -1, true) {};
     ~video();
 
     void setResize(int w, int h);

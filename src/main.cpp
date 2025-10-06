@@ -354,17 +354,21 @@ int main(int argc, char *argv[]) {
     // Parse command line arguments
     const char* video_file = nullptr;
     bool enable_opencl = true;
+    bool enable_audio = true;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--help") == 0) {
             printf("Usage: %s <video_file> [diff_threshold] [options]\n", argv[0]);
             printf("Options:\n");
             printf("  --force-cpu     Force CPU computation\n");
+            printf("  --no-audio      Disable audio playback\n");
             printf("  --print-usage   Print character usage rates\n");
             printf("  --help          Show this help message\n");
             return 0;
         }
         if (strcmp(argv[i], "--force-cpu") == 0) {
             enable_opencl = false;
+        } else if (strcmp(argv[i], "--no-audio") == 0) {
+            enable_audio = false;
         } else if (strcmp(argv[i], "--print-usage") == 0) {
             print_hit_rate = true;
         } else if (argv[i][0] != '-' && video_file == nullptr) {
@@ -404,15 +408,11 @@ int main(int argc, char *argv[]) {
             printf("opencl acceleration: disabled\n");
         }
 #else
-        if (enable_opencl) {
-            printf("opencl acceleration: disabled (not built with opencl support)\n");
-        } else {
-            printf("opencl acceleration: disabled (not built with opencl support)\n");
-        }
+        printf("opencl acceleration: disabled (not built with opencl support)\n");
 #endif
 
         // open the video file and create the decode object
-        video cap(argv[1]);
+        video cap(argv[1], -1, -1, enable_audio);
 
         // check if successfully opened
         if (!cap.isOpened()) {
