@@ -36,7 +36,7 @@
 
 // use reduced character set for cpu to reduce
 // computations and speedup rendering time
-#define CPU_REDUCED_CHARSET_AMT 14
+#define CPU_REDUCED_CHARSET_AMT 22
 
 #include "pixelmap.h"
 
@@ -167,7 +167,7 @@ void terminateProgram([[maybe_unused]] int sig_num) {
         std::sort(sorted_indices, sorted_indices + DIFF_CASES,
                   [](const int a, const int b) { return char_usage[a] > char_usage[b]; });
 
-        printf("\n\nCHAR USAGE HIT RATES\n");
+        printf("\n\nCHARACTER USAGE HIT RATES\n");
 
         for (int i = 0; i < DIFF_CASES; i++) {
             int idx = sorted_indices[i];
