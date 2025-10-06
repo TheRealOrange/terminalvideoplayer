@@ -34,9 +34,6 @@
 // (atkinson will be slower)
 #define ATKINSON_DITHERING
 
-// track character usage rates
-#define TRACK_HIT_RATE
-
 // use reduced character set for cpu to reduce
 // computations and speedup rendering time
 #define CPU_REDUCED_CHARSET_AMT 14
@@ -119,13 +116,17 @@ int render_buffer_written = 0;
 std::atomic<bool> frame_ready(false);
 std::atomic<bool> write_thread_running(true);
 std::thread write_thread;
-// tracking printtime in thread
+// tracking print time and total printed amount in thread
 std::atomic<int> last_printing_time(0);
+std::atomic<long long> total_chars_printed(0ll);
 
-#ifdef TRACK_HIT_RATE
 // tracking usage of different unicode characters
 long long char_usage[DIFF_CASES] = {0};
-#endif
+long long rendered_cursor_moves = 0;
+long long rendered_cursor_chars = 0;
+
+// print character usage rates
+bool print_hit_rate = false;
 
 int diffthreshold = DEFAULT_DIFFTHRESHOLD;
 
@@ -143,40 +144,42 @@ void terminateProgram([[maybe_unused]] int sig_num) {
         write_thread.join();
     }
 
-    video_stop = std::chrono::steady_clock::now();
-    const long long total_video_time = std::chrono::duration_cast<std::chrono::microseconds>(
-            video_stop - video_start).count();
-    printf("\x1B[0m\x1B[%d;%dHframes: %6lld, dropped: %6lld,  total time: %5.2fs,  render time: %5.2fs,  printing time: %5.2fs                                                            \u001b[?25h",
-       msg_y+1, 1, curr_frame, dropped, (double) total_video_time / 1000000.0,
-       (double) total_render_time / 1000000.0,
-       (double) total_printing_time / 1000000.0);
-
-#ifdef TRACK_HIT_RATE
     // sum total character renders
     long long total_chars = 0;
     for (const long long i : char_usage) total_chars += i;
 
-    int sorted_indices[DIFF_CASES];
-    for (int i = 0; i < DIFF_CASES; i++) sorted_indices[i] = i;
+    video_stop = std::chrono::steady_clock::now();
+    const long long total_video_time = std::chrono::duration_cast<std::chrono::microseconds>(
+            video_stop - video_start).count();
+    printf("\x1B[0m\x1B[%d;%dHframes: %6lld, dropped: %6lld,  total time: %5.2fs,  render time: %5.2fs,  printing time: %5.2fs,  chars rendered: %9lldk,  chars printed: %9lldk, cursor: %8lldk chars (%8lldk moves) \u001b[?25h",
+       msg_y+1, 1, curr_frame, dropped, (double) total_video_time / 1000000.0,
+       (double) total_render_time / 1000000.0,
+       (double) total_printing_time / 1000000.0,
+       total_chars / 1000ll, total_chars_printed.load() / 1000ll,
+       rendered_cursor_chars / 1000ll, rendered_cursor_moves / 1000ll);
 
-    // descending sort by usage count
-    std::sort(sorted_indices, sorted_indices + DIFF_CASES,
-              [](const int a, const int b) { return char_usage[a] > char_usage[b]; });
+    if (print_hit_rate) {
+        int sorted_indices[DIFF_CASES];
+        for (int i = 0; i < DIFF_CASES; i++) sorted_indices[i] = i;
 
-    printf("\n\nCharacter Usage Statistics\n");
-    printf("Total characters rendered: %lld\n\n", total_chars);
+        // descending sort by usage count
+        std::sort(sorted_indices, sorted_indices + DIFF_CASES,
+                  [](const int a, const int b) { return char_usage[a] > char_usage[b]; });
 
-    for (int i = 0; i < DIFF_CASES; i++) {
-        int idx = sorted_indices[i];
-        if (char_usage[idx] > 0) {
-            double percentage = (double)char_usage[idx] * 100.0 / (double)total_chars;
-            printf("%2d. %11lld  (%6.2f%%)  %s\n",
-                   i + 1, char_usage[idx], percentage, characters[idx]);
+        printf("\n\nCHAR USAGE HIT RATES\n");
+
+        for (int i = 0; i < DIFF_CASES; i++) {
+            int idx = sorted_indices[i];
+            if (char_usage[idx] > 0) {
+                double percentage = (double)char_usage[idx] * 100.0 / (double)total_chars;
+                printf("%2d. %11lld  (%6.2f%%)  %s\n",
+                       i + 1, char_usage[idx], percentage, characters[idx]);
+            }
         }
+        printf("\n");
+        printf("\u001b[?25h");
     }
-    printf("\n");
-    printf("\u001b[?25h");
-#endif
+
     fflush(stdout);
     exit(0);
 }
@@ -314,6 +317,9 @@ void write_thread_func() {
             int printing_time_local = (int) std::chrono::duration_cast<std::chrono::microseconds>(
                     print_end - printtime).count();
             last_printing_time.store(printing_time_local);
+
+            // track the total amount we actually printed
+            total_chars_printed.fetch_add(bytes_to_write);
         } else {
             lock.unlock();
         }
@@ -353,11 +359,14 @@ int main(int argc, char *argv[]) {
             printf("Usage: %s <video_file> [diff_threshold] [options]\n", argv[0]);
             printf("Options:\n");
             printf("  --force-cpu     Force CPU computation\n");
+            printf("  --print-usage   Print character usage rates\n");
             printf("  --help          Show this help message\n");
             return 0;
         }
         if (strcmp(argv[i], "--force-cpu") == 0) {
             enable_opencl = false;
+        } else if (strcmp(argv[i], "--print-usage") == 0) {
+            print_hit_rate = true;
         } else if (argv[i][0] != '-' && video_file == nullptr) {
             video_file = argv[i];
         } else if (argv[i][0] != '-' && video_file != nullptr) {
@@ -800,9 +809,7 @@ int main(int argc, char *argv[]) {
                             pixelbg[1] = (bg_colors[char_idx] >> 8) & 0xFF;
                             pixelbg[0] = bg_colors[char_idx] & 0xFF;
 
-#ifdef TRACK_HIT_RATE
                             char_usage[char_indices[char_idx]]++;
-#endif
                             shapechar = characters[char_indices[char_idx]];
 
                             bgsame = false;
@@ -832,8 +839,11 @@ int main(int argc, char *argv[]) {
                                 }
                                 print_ret = snprintf(print_buf + written, print_buffer_size - written,
                                     "\x1B[%d;%dH", ay+1, x+1);
-                                if (print_ret > 0 && print_ret < print_buffer_size - written)
+                                if (print_ret > 0 && print_ret < print_buffer_size - written) {
                                     written += print_ret;
+                                    rendered_cursor_moves++;
+                                    rendered_cursor_chars += print_ret;
+                                }
                             }
 
                             if (written >= print_buffer_size - 1) {
@@ -954,9 +964,8 @@ int main(int argc, char *argv[]) {
                                     mindiff = cases[case_it];
                                 }
                             }
-#ifdef TRACK_HIT_RATE
+
                             char_usage[case_min]++;
-#endif
                             shapechar = characters[case_min];
 
                             diffbg = 0;
@@ -1079,8 +1088,11 @@ int main(int argc, char *argv[]) {
                                 }
                                 print_ret = snprintf(print_buf + written, print_buffer_size - written,
                                 "\x1B[%d;%dH", ay+1, x+1);
-                                if (print_ret > 0 && print_ret < print_buffer_size - written)
+                                if (print_ret > 0 && print_ret < print_buffer_size - written) {
                                     written += print_ret;
+                                    rendered_cursor_moves++;
+                                    rendered_cursor_chars += print_ret;
+                                }
                             }
 
                             // prints background and foreground colour change command, or either of them, or none
@@ -1135,30 +1147,31 @@ int main(int argc, char *argv[]) {
                 break;
             }
             // different formatting based on terminal width
-            if (curr_w >= 160) {
+            if (curr_w >= 153) {
                 print_ret = snprintf(print_buf + written, print_buffer_size - written,
-                    "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  fps: %6.2f  |  avg: %6.2f  |  render: %6.2fms  |  print: %6.2fms  |  cursor: %5d  |  chars: %5.1fk  |  dropped: %6lld  |  frame: %6lld                ",
+                    "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  fps: %6.2f  |  avg: %6.2f  |  render: %7.2fms  |  print: %7.2fms  |  cursor: %5d  |  chars: %6.1fk  |  dropped: %7lld  |  frame: %7lld   ",
                     msg_y+1, 1,
                     static_cast<double>(frame_times.size()) * 1000000.0 / static_cast<double>(avg_frame_times_sum), avg_fps,
                     static_cast<double>(rendering_time) / 1000.0, static_cast<double>(printing_time) / 1000.0,
                     cursor_moves, written/1000.0, dropped, curr_frame);
-            } else if (curr_w >= 120) {
+            } else if (curr_w >= 98) {
                 print_ret = snprintf(print_buf + written, print_buffer_size - written,
-                    "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  fps: %6.2f  |  render: %5.1fms  |  print: %5.1fms  |  dropped: %6lld  |  frame: %6lld          ",
+                    "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  fps: %6.2f  |  render: %6.1fms  |  print: %6.1fms  |  dropped: %7lld  |  frame: %7lld   ",
                     msg_y+1, 1,
                     static_cast<double>(frame_times.size()) * 1000000.0 / static_cast<double>(avg_frame_times_sum),
                     static_cast<double>(rendering_time) / 1000.0, static_cast<double>(printing_time) / 1000.0,
                     dropped, curr_frame);
-            } else if (curr_w >= 80) {
+            } else if (curr_w >= 56) {
                 print_ret = snprintf(print_buf + written, print_buffer_size - written,
-                    "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  fps: %5.1f  |  frame: %6lld  |  dropped: %6lld      ",
+                    "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  fps: %5.1f  |  frame: %7lld  |  dropped: %7lld   ",
                     msg_y+1, 1,
                     static_cast<double>(frame_times.size()) * 1000000.0 / static_cast<double>(avg_frame_times_sum),
                     curr_frame, dropped);
             } else {
                 print_ret = snprintf(print_buf + written, print_buffer_size - written,
-                    "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  %6lld    ",
-                    msg_y+1, 1, curr_frame);
+                    "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  fps: %5.1f  |  frame: %7lld ",
+                    msg_y+1, 1, static_cast<double>(frame_times.size()) * 1000000.0 / static_cast<double>(avg_frame_times_sum),
+                    curr_frame);
             }
             if (print_ret > 0 && print_ret < print_buffer_size - written)
                 written += print_ret;
