@@ -24,10 +24,6 @@ const char characters[DIFF_CASES][4] = {
  "\u2589", // left 7/8 vertical
  "\u2501", // thick horizontal middle line
  "\u2503", // thick vertical center line
- "\u250f", // down and right (top-left corner)
- "\u2513", // down and left (top-right corner)
- "\u2517", // up and right (bottom-left corner)
- "\u251b", // up and left (bottom-right corner)
  "\u25e2", // lower right triangle
  "\u25e3", // lower left triangle
  "\u25e4", // upper left triangle
@@ -37,6 +33,10 @@ const char characters[DIFF_CASES][4] = {
  "\u25ae", // center rectangle with space
  "\u25c0", // left pointing triangle
  "\u25b6", // right pointing triangle
+ "\u250f", // down and right (top-left corner)
+ "\u2513", // down and left (top-right corner)
+ "\u2517", // up and right (bottom-left corner)
+ "\u251b", // up and left (bottom-right corner)
  "\u25b2", // upwards pointing triangle
  "\u25bc", // downwards pointing triangle
  "\u2523", // vertical and right (left T-junction)
@@ -260,46 +260,6 @@ const int pixelmap[DIFF_CASES][CHAR_Y * CHAR_X] = {
   0, 0, 0, 1, 1, 0, 0, 0,
   0, 0, 0, 1, 1, 0, 0, 0},
 
- // down and right (top-left corner)
- {0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 1, 1, 1, 1, 1,
-  0, 0, 0, 1, 1, 1, 1, 1,
-  0, 0, 0, 1, 1, 0, 0, 0,
-  0, 0, 0, 1, 1, 0, 0, 0,
-  0, 0, 0, 1, 1, 0, 0, 0},
-
- // down and left (top-right corner)
- {0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0,
-  1, 1, 1, 1, 1, 0, 0, 0,
-  1, 1, 1, 1, 1, 0, 0, 0,
-  0, 0, 0, 1, 1, 0, 0, 0,
-  0, 0, 0, 1, 1, 0, 0, 0,
-  0, 0, 0, 1, 1, 0, 0, 0},
-
- // up and right (bottom-left corner)
- {0, 0, 0, 1, 1, 0, 0, 0,
-  0, 0, 0, 1, 1, 0, 0, 0,
-  0, 0, 0, 1, 1, 0, 0, 0,
-  0, 0, 0, 1, 1, 1, 1, 1,
-  0, 0, 0, 1, 1, 1, 1, 1,
-  0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0},
-
- // up and left (bottom-right corner)
- {0, 0, 0, 1, 1, 0, 0, 0,
-  0, 0, 0, 1, 1, 0, 0, 0,
-  0, 0, 0, 1, 1, 0, 0, 0,
-  1, 1, 1, 1, 1, 0, 0, 0,
-  1, 1, 1, 1, 1, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0},
-
  // lower right triangle
  {0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0,
@@ -388,6 +348,46 @@ const int pixelmap[DIFF_CASES][CHAR_Y * CHAR_X] = {
   1, 1, 1, 1, 1, 1, 1, 1,
   1, 1, 1, 1, 1, 0, 0, 0,
   1, 1, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0},
+
+ // down and right (top-left corner)
+ {0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 1, 1, 1, 1, 1,
+  0, 0, 0, 1, 1, 1, 1, 1,
+  0, 0, 0, 1, 1, 0, 0, 0,
+  0, 0, 0, 1, 1, 0, 0, 0,
+  0, 0, 0, 1, 1, 0, 0, 0},
+
+ // down and left (top-right corner)
+ {0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  1, 1, 1, 1, 1, 0, 0, 0,
+  1, 1, 1, 1, 1, 0, 0, 0,
+  0, 0, 0, 1, 1, 0, 0, 0,
+  0, 0, 0, 1, 1, 0, 0, 0,
+  0, 0, 0, 1, 1, 0, 0, 0},
+
+ // up and right (bottom-left corner)
+ {0, 0, 0, 1, 1, 0, 0, 0,
+  0, 0, 0, 1, 1, 0, 0, 0,
+  0, 0, 0, 1, 1, 0, 0, 0,
+  0, 0, 0, 1, 1, 1, 1, 1,
+  0, 0, 0, 1, 1, 1, 1, 1,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0},
+
+ // up and left (bottom-right corner)
+ {0, 0, 0, 1, 1, 0, 0, 0,
+  0, 0, 0, 1, 1, 0, 0, 0,
+  0, 0, 0, 1, 1, 0, 0, 0,
+  1, 1, 1, 1, 1, 0, 0, 0,
+  1, 1, 1, 1, 1, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0},
 
  // upwards pointing triangle

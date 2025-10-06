@@ -24,11 +24,8 @@
 #define DEFAULT_DIFFTHRESHOLD 10
 #define CHANGE_THRESHOLD 10
 
-// dithering decay values
-// different for opencl as opencl results in temporal dithering
-// whereas cpu produces classical spatial dithering
-#define CPU_DITHERING_DECAY 0.75f
-#define OPENCL_DITHERING_DECAY 0.2f
+// dithering decay value
+#define CPU_DITHERING_DECAY 0.45f
 
 // fps calculation averaging window
 #define FPS_AVGING_AMT 24
@@ -42,7 +39,7 @@
 
 // use reduced character set for cpu to reduce
 // computations and speedup rendering time
-#define CPU_REDUCED_CHARSET_AMT 10
+#define CPU_REDUCED_CHARSET_AMT 14
 
 #include "pixelmap.h"
 
@@ -157,7 +154,7 @@ void terminateProgram([[maybe_unused]] int sig_num) {
 #ifdef TRACK_HIT_RATE
     // sum total character renders
     long long total_chars = 0;
-    for (long long i : char_usage) total_chars += i;
+    for (const long long i : char_usage) total_chars += i;
 
     int sorted_indices[DIFF_CASES];
     for (int i = 0; i < DIFF_CASES; i++) sorted_indices[i] = i;
@@ -184,8 +181,18 @@ void terminateProgram([[maybe_unused]] int sig_num) {
     exit(0);
 }
 
-// ai generated srgb to linear, original code DO NOT steal
-inline float srgb_to_linear(const unsigned char c) {
+// lookup tables
+#define SRGB_TO_LINEAR_LUT_SIZE 256
+#define LINEAR_TO_SRGB_LUT_SIZE 8192
+#define LINEAR_TO_SRGB_SCALE (LINEAR_TO_SRGB_LUT_SIZE - 1)
+#define SQRT_LUT_MAX (255*255*16)
+
+static float srgb_to_linear_lut[SRGB_TO_LINEAR_LUT_SIZE];
+static unsigned char linear_to_srgb_lut[LINEAR_TO_SRGB_LUT_SIZE];
+static int sqrt_lut[SQRT_LUT_MAX];
+
+// Original functions for LUT initialization
+static float srgb_to_linear_init(const unsigned char c) {
     float v = static_cast<float>(c) / 255.0f;
     if (v <= 0.04045f)
         return v / 12.92f;
@@ -193,8 +200,7 @@ inline float srgb_to_linear(const unsigned char c) {
         return powf((v + 0.055f) / 1.055f, 2.4f);
 }
 
-// ai generated linear to srgb, original code DO NOT steal
-inline unsigned char linear_to_srgb(float v) {
+static unsigned char linear_to_srgb_init(float v) {
     if (v <= 0.0031308f)
         v = v * 12.92f;
     else
@@ -202,12 +208,34 @@ inline unsigned char linear_to_srgb(float v) {
     return static_cast<unsigned char>(std::clamp(v * 255.0f, 0.0f, 255.0f));
 }
 
-#define SQRT_LUT_MAX (255*255*16)
-static int sqrt_lut[SQRT_LUT_MAX];  // max possible value is 2*255^2 + 4*255^2 + 3*255^2
+// fast precomputed LUT-based conversions
+inline float srgb_to_linear(const unsigned char c) {
+    return srgb_to_linear_lut[c];
+}
 
-void init_sqrt_lut() {
+inline unsigned char linear_to_srgb(float v) {
+    // clamp and quantize to LUT index
+    v = std::clamp(v, 0.0f, 1.0f);
+    int idx = static_cast<int>(std::lround(v * LINEAR_TO_SRGB_SCALE));
+    idx = std::clamp(idx, 0, LINEAR_TO_SRGB_LUT_SIZE - 1);
+    return linear_to_srgb_lut[idx];
+}
+
+void init_luts() {
+    // init sqrt LUT
     for (int i = 0; i < SQRT_LUT_MAX; i++) {
         sqrt_lut[i] = static_cast<int>(sqrt(static_cast<float>(i)));
+    }
+
+    // init sRGB to linear LUT
+    for (int i = 0; i < SRGB_TO_LINEAR_LUT_SIZE; i++) {
+        srgb_to_linear_lut[i] = srgb_to_linear_init(static_cast<unsigned char>(i));
+    }
+
+    // init linear to sRGB LUT
+    for (int i = 0; i < LINEAR_TO_SRGB_LUT_SIZE; i++) {
+        float linear_value = static_cast<float>(i) / LINEAR_TO_SRGB_SCALE;
+        linear_to_srgb_lut[i] = linear_to_srgb_init(linear_value);
     }
 }
 
@@ -297,7 +325,7 @@ void write_thread_func() {
 }
 
 int main(int argc, char *argv[]) {
-    init_sqrt_lut();
+    init_luts();
     // initialise time reference so its valid in the SIGINT handler
     video_start = std::chrono::steady_clock::now();
 
@@ -680,7 +708,7 @@ int main(int argc, char *argv[]) {
             // decay error buffer to prevent temporal ghosting
             int video_height = cap.get_height() / sy;
             int video_width = cap.get_width() / sx;
-            if (use_opencl) {
+            if (!use_opencl) {
                 if (error_buffer) {
                     for (int i = 0; i < video_height * video_width * 3; i++) {
                         error_buffer[i] *= CPU_DITHERING_DECAY;

@@ -37,6 +37,7 @@ std::string OpenCLProc::getKernelSource() {
 }
 
 bool OpenCLProc::initialize() {
+    #include "pixelmap.h"  // Include to access the pixelmap data
     cl_int err;
     cl_platform_id platform;
 
@@ -82,8 +83,17 @@ bool OpenCLProc::initialize() {
         return false;
     }
 
-    // Create program from source
-    std::string kernel_src = getKernelSource();
+    const int char_y = CHAR_Y;
+    const int char_x = CHAR_X;
+    const int diff_cases = DIFF_CASES;
+
+    // Create kernel source with injected constants
+    std::string kernel_src =
+        "#define CHAR_Y " + std::to_string(char_y) + "\n"
+        "#define CHAR_X " + std::to_string(char_x) + "\n"
+        "#define DIFF_CASES " + std::to_string(diff_cases) + "\n\n"
+        + getKernelSource();
+
     const char* src_ptr = kernel_src.c_str();
     size_t src_len = kernel_src.length();
 
@@ -109,6 +119,25 @@ bool OpenCLProc::initialize() {
         std::cerr << "Failed to create kernel" << std::endl;
         return false;
     }
+
+    // Create and upload pixelmap buffer
+    // flatten 2D array
+    std::vector<int> flat_pixelmap(DIFF_CASES * CHAR_Y * CHAR_X);
+    for (int i = 0; i < DIFF_CASES; i++) {
+        for (int j = 0; j < CHAR_Y * CHAR_X; j++) {
+            flat_pixelmap[i * CHAR_Y * CHAR_X + j] = pixelmap[i][j];
+        }
+    }
+
+    // Create buffer and copy data
+    d_pixelmap = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                                 flat_pixelmap.size() * sizeof(int),
+                                 flat_pixelmap.data(), &err);
+    if (err != CL_SUCCESS) {
+        std::cerr << "Failed to create pixelmap buffer" << std::endl;
+        return false;
+    }
+
 
     initialized = true;
     return true;
@@ -219,6 +248,7 @@ void OpenCLProc::processFrame(
     clSetKernelArg(kernel_process, 10, sizeof(int), &char_height);
     clSetKernelArg(kernel_process, 11, sizeof(int), &diffthreshold);
     clSetKernelArg(kernel_process, 12, sizeof(int), &refresh_int);
+    clSetKernelArg(kernel_process, 13, sizeof(cl_mem), &d_pixelmap);
 
     // Execute kernel
     size_t global_work_size[2] = {(size_t)char_width, (size_t)char_height};
