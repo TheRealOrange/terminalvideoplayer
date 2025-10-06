@@ -16,6 +16,18 @@ characters. The pixels however aren't really independent, and each character is 
 Mileage may vary depending on how fast your terminal is. In my testing, I've found
 that [alacritty](https://github.com/alacritty/alacritty) works rather well. (As of 2025, I can say that iTerm2 also performs spectacularly well)
 
+## Preview
+
+Below is a preview of how it looks with full color video, note the size/scale of the terminal (compare to the text size):
+
+![video playing in terminal](./imgs/colorvid.gif)
+
+And of course, as is custom (at this point it is basically canon for any esoteric display format to play),
+this is how it looks with bad apple video:
+
+![video playing in terminal](./imgs/badapple.gif)
+
+
 ## Features
 
 - Audio playback, using SDL2
@@ -41,20 +53,10 @@ leads to choppy video (especially on slower terminals). It relies on [ffmpeg](ht
 Build has been tested on macOS and Windows, albeit with some caveats on Windows (dynamic/static linking on windows 
 is fickle and finnicky, builds with Visual Studio differ from MinGW, `vcpckg` issues, etc.).
 
-### Dependencies
+## Dependencies
 - FFmpeg (libavformat, libavcodec, libavutil, libswscale, libswresample)
 - SDL2 (for audio playback)
 - OpenCL (optional, for GPU acceleration)
-
-Below is a preview of how it looks with full color video, note the size/scale of the terminal (compare to the text):
-
-![video playing in terminal](./imgs/colorvid.gif)
-
-And of course, as is custom (at this point it is basically canon for any esoteric display format to play), 
-this is how it looks with bad apple video:
-
-![video playing in terminal](./imgs/badapple.gif)
-
 
 ## How it works
 
