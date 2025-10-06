@@ -46,9 +46,15 @@ is fickle and finnicky, builds with Visual Studio differ from MinGW, `vcpckg` is
 - SDL2 (for audio playback)
 - OpenCL (optional, for GPU acceleration)
 
-Below is a preview of how it looks:
+Below is a preview of how it looks with full color video, note the size/scale of the terminal (compare to the text):
 
-![video playing in terminal](./imgs/video.gif)
+![video playing in terminal](./imgs/colorvid.gif)
+
+And of course, as is custom (at this point it is basically canon for any esoteric display format to play), 
+this is how it looks with bad apple video:
+
+![video playing in terminal](./imgs/badapple.gif)
+
 
 ## How it works
 
