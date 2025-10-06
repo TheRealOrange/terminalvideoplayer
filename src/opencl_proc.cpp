@@ -14,7 +14,7 @@ OpenCLProc::~OpenCLProc() {
     cleanup();
 }
 
-void OpenCLProc::cleanup() {
+void OpenCLProc::cleanup() const {
     if (d_frame) clReleaseMemObject(d_frame);
     if (d_old_frame) clReleaseMemObject(d_old_frame);
     if (d_output_frame) clReleaseMemObject(d_output_frame);

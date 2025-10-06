@@ -128,7 +128,7 @@ long long rendered_cursor_chars = 0;
 // print character usage rates
 bool print_hit_rate = false;
 
-int diffthreshold = DEFAULT_DIFFTHRESHOLD;
+int diff_threshold = DEFAULT_DIFFTHRESHOLD;
 
 // char width scaling (assuming terminal chars are 2x1 hxw)
 int sx = CHAR_X, sy = CHAR_X * 2;
@@ -375,7 +375,7 @@ int main(int argc, char *argv[]) {
         } else if (argv[i][0] != '-' && video_file == nullptr) {
             video_file = argv[i];
         } else if (argv[i][0] != '-' && video_file != nullptr) {
-            diffthreshold = std::stoi(argv[i], nullptr, 10);
+            diff_threshold = std::stoi(argv[i], nullptr, 10);
         }
     }
 
@@ -393,7 +393,7 @@ int main(int argc, char *argv[]) {
 #endif
 
         // if the diff threshold argument is specified, and is within range, use the specified diff
-        diffthreshold = std::max(std::min(255, diffthreshold), 0);
+        diff_threshold = std::max(std::min(255, diff_threshold), 0);
 
         bool use_opencl = false;
 #ifdef HAVE_OPENCL
@@ -799,7 +799,7 @@ int main(int argc, char *argv[]) {
                     frame, old, old,
                     cap.get_width(), cap.get_height(),
                     video_width, video_height,
-                    diffthreshold, refresh,
+                    diff_threshold, refresh,
                     char_indices, fg_colors, bg_colors, needs_update
                 );
 
@@ -938,7 +938,7 @@ int main(int argc, char *argv[]) {
                         }
 
                         // if the difference exceeds the set threshold, reprint the entire character
-                        if (diff >= diffthreshold) {
+                        if (diff >= diff_threshold) {
                             for (int &case_it: cases) case_it = 0;
 
                             // calculate for each unicode character, the max error between what

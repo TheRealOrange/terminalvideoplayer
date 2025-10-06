@@ -67,11 +67,11 @@ private:
   size_t current_buffer_size = 0;
   size_t current_grid_size = 0;
 
-  void cleanup();
+  void cleanup() const;
 
   bool createBuffers(size_t frame_size, size_t grid_size);
 
-  std::string getKernelSource();
+  static std::string getKernelSource();
 };
 
 #endif // HAVE_OPENCL

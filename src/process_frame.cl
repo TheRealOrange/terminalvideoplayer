@@ -75,7 +75,7 @@ __kernel void process_characters(
     int frame_height,
     int grid_width,
     int grid_height,
-    int diffthreshold,
+    int diff_threshold,
     int refresh,
     __global const int* pixelmap
 ) {
@@ -117,7 +117,7 @@ __kernel void process_characters(
     // calculate perceptual difference in linear/perceptual space
     float max_diff = 0.0f;
     if (refresh) {
-        max_diff = 1000.0f;
+        max_diff = 9999.0f;
     } else {
         for (int i = 0; i < CHAR_Y; i++) {
             for (int j = 0; j < CHAR_X; j++) {
@@ -131,10 +131,10 @@ __kernel void process_characters(
     }
 
     // scale diff to roughly match cpu threshold scale
-    float scaled_diff = max_diff * 255.0f;
-    needs_update[char_idx] = (scaled_diff >= diffthreshold) ? true : false;
+    int scaled_diff = (int)(max_diff * 255.0f);
+    needs_update[char_idx] = scaled_diff >= diff_threshold;
 
-    if (scaled_diff >= diffthreshold) {
+    if (needs_update[char_idx]) {
         // find best character using MSE in linear space
         // cpu uses simple minimax
         float cases[DIFF_CASES];
@@ -237,6 +237,20 @@ __kernel void process_characters(
                 output_frame[pix_idx + 2] = pixelmap[pmap_idx] ? pixelchar[0] : pixelbg[0]; // R
                 output_frame[pix_idx + 1] = pixelmap[pmap_idx] ? pixelchar[1] : pixelbg[1]; // G
                 output_frame[pix_idx + 0] = pixelmap[pmap_idx] ? pixelchar[2] : pixelbg[2]; // B
+            }
+        }
+    } else {
+        // write old data to output frame
+        for (int i = 0; i < CHAR_Y; i++) {
+            for (int j = 0; j < CHAR_X; j++) {
+                int px = x * sx + j * skipx;
+                int py = y * sy + i * skipy;
+                int pix_idx = (py * frame_width + px) * 3;
+
+                // Output in BGR order
+                output_frame[pix_idx + 2] = old_frame[pix_idx + 2]; // R
+                output_frame[pix_idx + 1] = old_frame[pix_idx + 1]; // G
+                output_frame[pix_idx + 0] = old_frame[pix_idx + 0]; // B
             }
         }
     }

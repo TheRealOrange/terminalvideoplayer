@@ -94,7 +94,7 @@ if (OpenCL_FOUND)
     target_link_libraries(tvp PRIVATE ${OpenCL_LIBRARIES})
 endif ()
 
-target_compile_options(tvp PRIVATE -O3 -Wall -Wextra -ffast-math)
+target_compile_options(tvp PRIVATE -O3 -Wall -Wextra -ffast-math -march=native)
 
 if (ipo_supported)
     set_target_properties(tvp PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)

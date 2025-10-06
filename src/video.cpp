@@ -241,7 +241,8 @@ int video::get_frame(int dst_w, int dst_h, const char *dst_frame) {
                     ret = avcodec_receive_frame(audio_codec, audio_frame);
                     if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
                         break;
-                    } else if (ret < 0) {
+                    }
+                    if (ret < 0) {
                         av_make_error_string(errbuf, sizeof(errbuf), ret);
                         fprintf(stderr, "fail to av_receive_frame (audio): %s\n", errbuf);
                         break;
@@ -283,18 +284,15 @@ int video::get_frame(int dst_w, int dst_h, const char *dst_frame) {
             }
         }
 
-        if (!got_video_frame) {
-            ret = avcodec_receive_frame(codec, decframe);
-            if (ret < 0 && ret != AVERROR_EOF && ret != AVERROR(EAGAIN)) {
-                av_make_error_string(errbuf, sizeof(errbuf), ret);
-                fprintf(stderr, "fail to av_receive_frame: %s\n", errbuf);
-            }
-            end_of_stream_enc = (AVERROR_EOF == ret);
-
-            if (ret == 0) {
-                got_video_frame = true;
-            }
+        ret = avcodec_receive_frame(codec, decframe);
+        if (ret < 0 && ret != AVERROR_EOF && ret != AVERROR(EAGAIN)) {
+            av_make_error_string(errbuf, sizeof(errbuf), ret);
+            fprintf(stderr, "fail to av_receive_frame: %s\n", errbuf);
         }
+        end_of_stream_enc = (AVERROR_EOF == ret);
+
+        if (ret == 0) got_video_frame = true;
+        else got_video_frame = false;
 
         av_packet_unref(pkt);
     } while (!got_video_frame && !end_of_stream_enc);
