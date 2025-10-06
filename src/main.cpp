@@ -1039,25 +1039,25 @@ int main(int argc, char *argv[]) {
                                 total_error /= (CHAR_Y * CHAR_X);
 
                                 // distribute error per channel
-                                int err_idx_right = (ay * curr_w + (x + 1)) * 3 + k;
-                                int err_idx_below = ((ay + 1) * curr_w + x) * 3 + k;
-                                int err_idx_diag = ((ay + 1) * curr_w + (x + 1)) * 3 + k;
+                                int err_idx_right = (ay * video_width + (x + 1)) * 3 + k;
+                                int err_idx_below = ((ay + 1) * video_width + x) * 3 + k;
+                                int err_idx_diag = ((ay + 1) * video_width + (x + 1)) * 3 + k;
 
 #ifdef ATKINSON_DITHERING
                                 // atkinson dithering
                                 if (x + 1 < video_width)
                                     error_buffer[err_idx_right] += total_error * 0.125f;
                                 if (x + 2 < video_width)
-                                    error_buffer[(ay * curr_w + (x + 2)) * 3 + k] += total_error * 0.125f;
+                                    error_buffer[(ay * video_width + (x + 2)) * 3 + k] += total_error * 0.125f;
                                 if (ay + 1 < video_height) {
                                     error_buffer[err_idx_below] += total_error * 0.125f;
                                     if (x - 1 >= 0)
-                                        error_buffer[((ay + 1) * curr_w + (x - 1)) * 3 + k] += total_error * 0.125f;
+                                        error_buffer[((ay + 1) * video_width + (x - 1)) * 3 + k] += total_error * 0.125f;
                                     if (x + 1 < video_width)
                                         error_buffer[err_idx_diag] += total_error * 0.125f;
                                 }
                                 if (ay + 2 < video_height)
-                                    error_buffer[((ay + 2) * curr_w + x) * 3 + k] += total_error * 0.125f;
+                                    error_buffer[((ay + 2) * video_width + x) * 3 + k] += total_error * 0.125f;
 #else
                                 // floyd-steinberg dithering
                                 if (x + 1 < video_width)
