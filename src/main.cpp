@@ -734,10 +734,8 @@ int main(int argc, char *argv[]) {
 
             // compute time taken for the previous frame
             stop = std::chrono::steady_clock::now();
-            elapsed = static_cast<int>(std::chrono::duration_cast<std::chrono::microseconds>(stop - video_start).
-                count());
-            int frame_time = static_cast<int>(std::chrono::duration_cast<std::chrono::microseconds>(stop - start).
-                count());
+            elapsed = std::chrono::duration_cast<std::chrono::microseconds>(stop - video_start).count();
+            long long frame_time = std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
             start = std::chrono::steady_clock::now();
 
             // compute the average fps, as well as the fps of the last N frames
