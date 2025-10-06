@@ -20,17 +20,16 @@ that [alacritty](https://github.com/alacritty/alacritty) works rather well. (As 
 
 Below is a preview of how it looks with full color video, note the size/scale of the terminal (compare to the text size):
 
-![video playing in terminal](./imgs/colorvid.gif)
+https://github.com/user-attachments/assets/a91608f9-0237-4014-ac2a-02101e88709e
 
 And of course, as is custom (at this point it is basically canon for any esoteric display format to play),
 this is how it looks with bad apple video:
 
-![video playing in terminal](./imgs/badapple.gif)
-
+https://github.com/user-attachments/assets/06f54f94-030a-4e1a-a52b-ed01517ff0cd
 
 ## Features
 
-- Audio playback, using SDL2
+- Audio playback, using [SDL2](https://www.libsdl.org)
 - Expanded characterset of 44 (OpenCL) or 22 (CPU) Unicode characters for better representation of the image
 - OpenCL acceleration for systems with supported devices to render the frames using the expanded characterset
 - Perceptual color optimisation using either fast weighted RGB or Oklab color space
@@ -54,8 +53,8 @@ Build has been tested on macOS and Windows, albeit with some caveats on Windows 
 is fickle and finnicky, builds with Visual Studio differ from MinGW, `vcpckg` issues, etc.).
 
 ## Dependencies
-- FFmpeg (libavformat, libavcodec, libavutil, libswscale, libswresample)
-- SDL2 (for audio playback)
+- [FFmpeg](https://www.ffmpeg.org) (libavformat, libavcodec, libavutil, libswscale, libswresample)
+- [SDL2](https://www.libsdl.org) (for audio playback)
 - OpenCL (optional, for GPU acceleration)
 
 ## How it works
