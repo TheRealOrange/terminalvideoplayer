@@ -16,12 +16,34 @@
 #include "opencl_proc.h"
 #endif
 
+// compile configuration options
+// use fast perceptual diff for cpu
+#define CPU_FAST_PERCEPTUAL_DIFF
+
+// default pixel update change threshold values
 #define DEFAULT_DIFFTHRESHOLD 10
-#define CHANGE_THRESHOLD 15
-#define CPU_DITHERING_DECAY 0.7f
-#define OPENCL_DITHERING_DECAY 0.45f
+#define CHANGE_THRESHOLD 10
+
+// dithering decay values
+// different for opencl as opencl results in temporal dithering
+// whereas cpu produces classical spatial dithering
+#define CPU_DITHERING_DECAY 0.75f
+#define OPENCL_DITHERING_DECAY 0.2f
+
+// fps calculation averaging window
+#define FPS_AVGING_AMT 24
+
+// cpu floyd steinberg or atkinson dithering
+// (atkinson will be slower)
 #define ATKINSON_DITHERING
+
+// track character usage rates
 #define TRACK_HIT_RATE
+
+// use reduced character set for cpu to reduce
+// computations and speedup rendering time
+#define CPU_REDUCED_CHARSET_AMT 10
+
 #include "pixelmap.h"
 
 #if defined(_WIN32)
@@ -71,20 +93,20 @@ void get_terminal_size(int &width, int &height) {
 }
 
 const char *shapechar;
-int count = 0, curr_frame = 0;;
+long long count = 0, curr_frame = 0;;
 double fps;
 int period = 0;
 
-int printing_time, rendering_time, elapsed;
+long long printing_time, rendering_time, elapsed;
 double avg_fps = 0;
-int total_time = 0, frame10_time = 0;
-std::queue<int> frametimes;
+long long total_time = 0, avg_frame_times_sum = 0;
+std::queue<long long> frame_times;
 int msg_y = 0;
-int dropped = 0;
+long long dropped = 0;
 double skip;
 
 std::chrono::time_point<std::chrono::steady_clock> start, stop, render_start, render_end;
-std::chrono::time_point<std::chrono::steady_clock> videostart, videostop;
+std::chrono::time_point<std::chrono::steady_clock> video_start, video_stop;
 long long total_printing_time = 0;
 long long total_render_time = 0;
 int cursor_moves = 0;
@@ -96,7 +118,7 @@ std::condition_variable buffer_ready_cv;
 char* render_buffer = nullptr;
 int render_buffer_size = 0;
 int render_buffer_written = 0;
-// threading signals for nextframe and shutdown
+// threading signals for next frame and shutdown
 std::atomic<bool> frame_ready(false);
 std::atomic<bool> write_thread_running(true);
 std::thread write_thread;
@@ -105,7 +127,7 @@ std::atomic<int> last_printing_time(0);
 
 #ifdef TRACK_HIT_RATE
 // tracking usage of different unicode characters
-int char_usage[DIFF_CASES] = {0};
+long long char_usage[DIFF_CASES] = {0};
 #endif
 
 int diffthreshold = DEFAULT_DIFFTHRESHOLD;
@@ -124,10 +146,10 @@ void terminateProgram([[maybe_unused]] int sig_num) {
         write_thread.join();
     }
 
-    videostop = std::chrono::steady_clock::now();
-    long long total_video_time = (long long) std::chrono::duration_cast<std::chrono::microseconds>(
-            videostop - videostart).count();
-    printf("\x1B[0m\x1B[%d;%dHframes: %5d, dropped: %5d,  total time: %5.2fs,  render time: %5.2fs,  printing time: %5.2fs                                                            \u001b[?25h",
+    video_stop = std::chrono::steady_clock::now();
+    const long long total_video_time = std::chrono::duration_cast<std::chrono::microseconds>(
+            video_stop - video_start).count();
+    printf("\x1B[0m\x1B[%d;%dHframes: %6lld, dropped: %6lld,  total time: %5.2fs,  render time: %5.2fs,  printing time: %5.2fs                                                            \u001b[?25h",
        msg_y+1, 1, curr_frame, dropped, (double) total_video_time / 1000000.0,
        (double) total_render_time / 1000000.0,
        (double) total_printing_time / 1000000.0);
@@ -135,16 +157,14 @@ void terminateProgram([[maybe_unused]] int sig_num) {
 #ifdef TRACK_HIT_RATE
     // sum total character renders
     long long total_chars = 0;
-    for (int i = 0; i < DIFF_CASES; i++) {
-        total_chars += char_usage[i];
-    }
+    for (long long i : char_usage) total_chars += i;
 
     int sorted_indices[DIFF_CASES];
     for (int i = 0; i < DIFF_CASES; i++) sorted_indices[i] = i;
 
     // descending sort by usage count
     std::sort(sorted_indices, sorted_indices + DIFF_CASES,
-              [](int a, int b) { return char_usage[a] > char_usage[b]; });
+              [](const int a, const int b) { return char_usage[a] > char_usage[b]; });
 
     printf("\n\nCharacter Usage Statistics\n");
     printf("Total characters rendered: %lld\n\n", total_chars);
@@ -153,7 +173,7 @@ void terminateProgram([[maybe_unused]] int sig_num) {
         int idx = sorted_indices[i];
         if (char_usage[idx] > 0) {
             double percentage = (double)char_usage[idx] * 100.0 / (double)total_chars;
-            printf("%2d. %11d  (%6.2f%%)  %s\n",
+            printf("%2d. %11lld  (%6.2f%%)  %s\n",
                    i + 1, char_usage[idx], percentage, characters[idx]);
         }
     }
@@ -165,8 +185,8 @@ void terminateProgram([[maybe_unused]] int sig_num) {
 }
 
 // ai generated srgb to linear, original code DO NOT steal
-inline float srgb_to_linear(unsigned char c) {
-    float v = c / 255.0f;
+inline float srgb_to_linear(const unsigned char c) {
+    float v = static_cast<float>(c) / 255.0f;
     if (v <= 0.04045f)
         return v / 12.92f;
     else
@@ -179,10 +199,10 @@ inline unsigned char linear_to_srgb(float v) {
         v = v * 12.92f;
     else
         v = 1.055f * powf(v, 1.0f/2.4f) - 0.055f;
-    return (unsigned char)(std::clamp(v * 255.0f, 0.0f, 255.0f));
+    return static_cast<unsigned char>(std::clamp(v * 255.0f, 0.0f, 255.0f));
 }
 
-#define SQRT_LUT_MAX (255*255*12)
+#define SQRT_LUT_MAX (255*255*16)
 static int sqrt_lut[SQRT_LUT_MAX];  // max possible value is 2*255^2 + 4*255^2 + 3*255^2
 
 void init_sqrt_lut() {
@@ -191,21 +211,41 @@ void init_sqrt_lut() {
     }
 }
 
-inline int perceptual_diff(int r1, int g1, int b1, int r2, int g2, int b2) {
+#ifdef CPU_FAST_PERCEPTUAL_DIFF
+inline int perceptual_diff(const int r1, const int g1, const int b1, const int r2, const int g2, const int b2) {
     if (r1 > 255 || r2 > 255 || g1 > 255 || g2 > 255 || b1 > 255 || b2 > 255)
-        return 9999;  // large value to force update
+        return 9999;
 
+    int rmean = (r1 + r2) / 2;
     int dr = r1 - r2;
     int dg = g1 - g2;
     int db = b1 - b2;
-    int idx = 2*dr*dr + 4*dg*dg + 3*db*db;
+
+    int idx = ((512 + rmean) * dr * dr) / 256 + 4 * dg * dg + ((767 - rmean) * db * db) / 256;
     return sqrt_lut[idx];
 }
+#else
+inline int perceptual_diff(const int r1, const int g1, const int b1, const int r2, const int g2, const int b2) {
+    if (r1 > 255 || r2 > 255 || g1 > 255 || g2 > 255 || b1 > 255 || b2 > 255)
+        return 9999;
+
+    // BT.709 coefficients for HD video
+    int y1 = (r1 * 2126 + g1 * 7152 + b1 * 722) / 10000;
+    int y2 = (r2 * 2126 + g2 * 7152 + b2 * 722) / 10000;
+    int dy = y1 - y2;
+    int dr = r1 - r2;
+    int dg = g1 - g2;
+    int db = b1 - b2;
+
+    // Weight luminance much more heavily
+    int idx = 8 * dy * dy + dr * dr + dg * dg + db * db;
+    return sqrt_lut[idx];
+}
+#endif
 
 void write_thread_func() {
     char* write_buffer_local = nullptr;
     int write_buffer_size_local = 0;
-    std::chrono::time_point<std::chrono::steady_clock> printtime, print_end;
 
     while (write_thread_running) {
         std::unique_lock<std::mutex> lock(render_buffer_mutex);
@@ -238,10 +278,10 @@ void write_thread_func() {
             lock.unlock();
 
             // profile write time
-            printtime = std::chrono::steady_clock::now();
+            std::chrono::time_point<std::chrono::steady_clock> printtime = std::chrono::steady_clock::now();
             // write entire buffer in one call
             write(STDOUT_FILENO, write_buffer_local, bytes_to_write);
-            print_end = std::chrono::steady_clock::now();
+            std::chrono::time_point<std::chrono::steady_clock> print_end = std::chrono::steady_clock::now();
 
             int printing_time_local = (int) std::chrono::duration_cast<std::chrono::microseconds>(
                     print_end - printtime).count();
@@ -259,7 +299,7 @@ void write_thread_func() {
 int main(int argc, char *argv[]) {
     init_sqrt_lut();
     // initialise time reference so its valid in the SIGINT handler
-    videostart = std::chrono::steady_clock::now();
+    video_start = std::chrono::steady_clock::now();
 
     // bind the function to the SIGINT signal
     signal(SIGINT, terminateProgram);
@@ -279,17 +319,17 @@ int main(int argc, char *argv[]) {
 
     // Parse command line arguments
     const char* video_file = nullptr;
-    bool enable_opencl = false;
+    bool enable_opencl = true;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--help") == 0) {
             printf("Usage: %s <video_file> [diff_threshold] [options]\n", argv[0]);
             printf("Options:\n");
-            printf("  --use-opencl    Enable OpenCL GPU acceleration\n");
+            printf("  --force-cpu     Force CPU computation\n");
             printf("  --help          Show this help message\n");
             return 0;
         }
-        if (strcmp(argv[i], "--use-opencl") == 0) {
-            enable_opencl = true;
+        if (strcmp(argv[i], "--force-cpu") == 0) {
+            enable_opencl = false;
         } else if (argv[i][0] != '-' && video_file == nullptr) {
             video_file = argv[i];
         } else if (argv[i][0] != '-' && video_file != nullptr) {
@@ -319,18 +359,18 @@ int main(int argc, char *argv[]) {
         if (enable_opencl) {
             use_opencl = ocl.initialize();
             if (use_opencl) {
-                printf("opencl initialized: %s\n", ocl.getDeviceName().c_str());
+                printf("opencl acceleration: enabled (using device: %s)\n", ocl.getDeviceName().c_str());
             } else {
-                printf("opencl initialization failed, falling back to cpu\n");
+                printf("opencl acceleration: disabled (no device)\n");
             }
         } else {
-            printf("using cpu (opencl disabled)\n");
+            printf("opencl acceleration: disabled\n");
         }
 #else
         if (enable_opencl) {
-            printf("Warning: OpenCL requested but not compiled in, using CPU\n");
+            printf("opencl acceleration: disabled (not built with opencl support)\n");
         } else {
-            printf("Using CPU\n");
+            printf("opencl acceleration: disabled (not built with opencl support)\n");
         }
 #endif
 
@@ -461,7 +501,7 @@ int main(int argc, char *argv[]) {
 
                     // set actual reference times
                     start = std::chrono::steady_clock::now();
-                    videostart = std::chrono::steady_clock::now();
+                    video_start = std::chrono::steady_clock::now();
                 }
 
                 // set the video resize dimensions
@@ -472,11 +512,11 @@ int main(int argc, char *argv[]) {
 
                 // reallocate up old frame data if they were allocated
                 if (alloc) {
-                    char* realloc_frame = static_cast<char *>(std::realloc(frame, cap.get_dst_buf_size()));
-                    char* realloc_old = static_cast<char *>(std::realloc(old, cap.get_dst_buf_size()));
+                    auto* realloc_frame = static_cast<char *>(std::realloc(frame, cap.get_dst_buf_size()));
+                    auto* realloc_old = static_cast<char *>(std::realloc(old, cap.get_dst_buf_size()));
                     print_buffer_size = curr_w*curr_h * 60;
-                    char* realloc_print_buf = static_cast<char *>(std::realloc(print_buf, print_buffer_size));
-                    float* realloc_error = static_cast<float*>(std::realloc(error_buffer, term_video_chars*3*sizeof(float)));
+                    auto* realloc_print_buf = static_cast<char *>(std::realloc(print_buf, print_buffer_size));
+                    auto* realloc_error = static_cast<float*>(std::realloc(error_buffer, term_video_chars*3*sizeof(float)));
 
                     char* realloc_render_buf = nullptr;
                     {
@@ -486,10 +526,10 @@ int main(int argc, char *argv[]) {
 
 #ifdef HAVE_OPENCL
                     // realloc opencl buffers
-                    int *realloc_indices = static_cast<int *>(std::realloc(char_indices, term_video_chars * sizeof(int)));
-                    int *realloc_fg_colors = static_cast<int *>(std::realloc(fg_colors, term_video_chars * sizeof(int)));
-                    int *realloc_bg_colors = static_cast<int *>(std::realloc(bg_colors, term_video_chars * sizeof(int)));
-                    bool *realloc_needs_update = static_cast<bool *>(std::realloc(needs_update, term_video_chars * sizeof(bool)));
+                    auto *realloc_indices = static_cast<int *>(std::realloc(char_indices, term_video_chars * sizeof(int)));
+                    auto *realloc_fg_colors = static_cast<int *>(std::realloc(fg_colors, term_video_chars * sizeof(int)));
+                    auto *realloc_bg_colors = static_cast<int *>(std::realloc(bg_colors, term_video_chars * sizeof(int)));
+                    auto *realloc_needs_update = static_cast<bool *>(std::realloc(needs_update, term_video_chars * sizeof(bool)));
 
                     if (realloc_frame && realloc_old && realloc_print_buf && realloc_error
                         && realloc_indices && realloc_fg_colors && realloc_bg_colors && realloc_needs_update) {
@@ -538,7 +578,6 @@ int main(int argc, char *argv[]) {
 
                         if (realloc_error) std::free(realloc_error);
                         else std::free(error_buffer);
-
 #ifdef HAVE_OPENCL
                         // free successfull allocated opencl buffers
                         if (realloc_indices) std::free(realloc_indices);
@@ -609,7 +648,6 @@ int main(int argc, char *argv[]) {
                         if (needs_update) std::free(needs_update);
 #endif
 
-
                         alloc = false;
                         fprintf(stderr, "failed to allocate buffers\n");
                         break;
@@ -634,38 +672,42 @@ int main(int argc, char *argv[]) {
                 write(STDOUT_FILENO, print_buf, written);
             }
 
+            if (!alloc) break;
+
             // get frame from video
             int ret = cap.get_frame(small_dims[0], small_dims[1], frame);
 
             // decay error buffer to prevent temporal ghosting
             int video_height = cap.get_height() / sy;
             int video_width = cap.get_width() / sx;
-            if (error_buffer) {
-                for (int i = 0; i < video_height * video_width * 3; i++) {
-                    error_buffer[i] *= (use_opencl) ? OPENCL_DITHERING_DECAY : CPU_DITHERING_DECAY;
+            if (use_opencl) {
+                if (error_buffer) {
+                    for (int i = 0; i < video_height * video_width * 3; i++) {
+                        error_buffer[i] *= CPU_DITHERING_DECAY;
+                    }
                 }
             }
 
             // compute time taken for the previous frame
             stop = std::chrono::steady_clock::now();
-            elapsed = (int) std::chrono::duration_cast<std::chrono::microseconds>(stop - videostart).count();
-            int frame_time = (int) std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
+            elapsed = static_cast<int>(std::chrono::duration_cast<std::chrono::microseconds>(stop - video_start).count());
+            int frame_time = static_cast<int>(std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count());
             start = std::chrono::steady_clock::now();
 
-            // compute the average fps, as well as the fps of the last 10 frames
+            // compute the average fps, as well as the fps of the last N frames
             total_time = elapsed;
-            avg_fps = (double) count * 1000000.0 / (double) total_time;
-            frametimes.push(frame_time);
-            frame10_time += frame_time;
-            if (frametimes.size() > 10) {
-                frame10_time -= frametimes.front();
-                frametimes.pop();
+            avg_fps = static_cast<double>(count) * 1000000.0 / static_cast<double>(total_time);
+            frame_times.push(frame_time);
+            avg_frame_times_sum += frame_time;
+            if (frame_times.size() > FPS_AVGING_AMT) {
+                avg_frame_times_sum -= frame_times.front();
+                frame_times.pop();
             }
 
             // if there is still time before the next frame, wait a bit
             if (curr_frame * period - elapsed > 0)
                 std::this_thread::sleep_until(
-                        std::chrono::microseconds(curr_frame * period - elapsed - frame10_time / frametimes.size()) +
+                        std::chrono::microseconds(curr_frame * period - elapsed - avg_frame_times_sum / frame_times.size()) +
                         stop);
             else {
                 // if the next frame is overdue, skip the frame and wait till the earliest non-overdue frame
@@ -674,7 +716,7 @@ int main(int argc, char *argv[]) {
                 dropped += std::floor(skip);
                 curr_frame += std::floor(skip);
                 std::this_thread::sleep_until(
-                        std::chrono::microseconds(curr_frame * period - frame10_time / frametimes.size()) + videostart);
+                        std::chrono::microseconds(curr_frame * period - avg_frame_times_sum / frame_times.size()) + video_start);
             }
 
             // set the previous pixel bg colour and font colour to a large value to force the ansi colour command to be printed
@@ -698,11 +740,6 @@ int main(int argc, char *argv[]) {
             r = -1;
             c = -1;
 
-            // variables to store the pointer to the start of each row for easier reference
-            // each pixel uses CHAR_Y rows of the actual image
-            char *row[CHAR_Y];
-            char *oldrow[CHAR_Y];
-
             // reset snprintf buffer
             written = 0;
             // reset cursor moves tracking
@@ -713,7 +750,7 @@ int main(int argc, char *argv[]) {
 #ifdef HAVE_OPENCL
             if (use_opencl) {
                 ocl.processFrame(
-                    frame, old, old, error_buffer,
+                    frame, old, old,
                     cap.get_width(), cap.get_height(),
                     video_width, video_height,
                     diffthreshold, refresh,
@@ -805,6 +842,10 @@ int main(int argc, char *argv[]) {
                     }
                 }
             } else {
+                // variables to store the pointer to the start of each row for easier reference
+                // each pixel uses CHAR_Y rows of the actual image
+                char *row[CHAR_Y];
+                char *oldrow[CHAR_Y];
 #endif
                 for (int ay = 0; ay < video_height; ay++) {
                     // set the row pointers
@@ -853,7 +894,7 @@ int main(int argc, char *argv[]) {
                             // will be printed on screen and the actual video pixel if the character were used
                             // for the cpu version, just use max, the opencl version can use MSE
                             for (int k = 0; k < 3; k++) {
-                                for (int case_it = 0; case_it < (int)std::size(cases); case_it++) {
+                                for (int case_it = 0; case_it < DIFF_CASES - CPU_REDUCED_CHARSET_AMT; case_it++) {
                                     min_fg = 256;
                                     min_bg = 256;
                                     max_fg = 0;
@@ -879,7 +920,7 @@ int main(int argc, char *argv[]) {
                             // choose the unicode char to print which minimises the diff
                             mindiff = 256;
                             case_min = 0;
-                            for (int case_it = 0; case_it < static_cast<int>(std::size(cases)); case_it++) {
+                            for (int case_it = 0; case_it < DIFF_CASES - CPU_REDUCED_CHARSET_AMT; case_it++) {
                                 if (cases[case_it] < mindiff) {
                                     case_min = case_it;
                                     mindiff = cases[case_it];
@@ -916,8 +957,8 @@ int main(int argc, char *argv[]) {
                                 }
 
                             for (int k = 0; k < 3; k++) {
-                                pixelchar[k] = linear_to_srgb(linear_fg[k] / fg_count);
-                                pixelbg[k] = linear_to_srgb(linear_bg[k] / bg_count);
+                                pixelchar[k] = linear_to_srgb(linear_fg[k] / static_cast<float>(fg_count));
+                                pixelbg[k] = linear_to_srgb(linear_bg[k] / static_cast<float>(bg_count));
                             }
 
                             // find the max diff between the foreground and background colours
@@ -953,9 +994,9 @@ int main(int argc, char *argv[]) {
                                 for (int i = 0; i < CHAR_Y; i++)
                                     for (int j = 0; j < CHAR_X; j++) {
                                         if (pixelmap[case_min][i * CHAR_X + j])
-                                            *(oldrow[i] + (x * sx + j * skipx) * 3 + k) = (char) pixelchar[k];
+                                            *(oldrow[i] + (x * sx + j * skipx) * 3 + k) = static_cast<char>(pixelchar[k]);
                                         else
-                                            *(oldrow[i] + (x * sx + j * skipx) * 3 + k) = (char) pixelbg[k];
+                                            *(oldrow[i] + (x * sx + j * skipx) * 3 + k) = static_cast<char>(pixelbg[k]);
                                     }
 
                             // diffuse color errors
@@ -1068,27 +1109,27 @@ int main(int argc, char *argv[]) {
             // different formatting based on terminal width
             if (curr_w >= 160) {
                 print_ret = snprintf(print_buf + written, print_buffer_size - written,
-                    "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  fps: %6.2f  |  avg: %6.2f  |  render: %6.2fms  |  print: %6.2fms  |  cursor: %5d  |  chars: %5.1fk  |  dropped: %5d  |  frame: %5d                ",
+                    "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  fps: %6.2f  |  avg: %6.2f  |  render: %6.2fms  |  print: %6.2fms  |  cursor: %5d  |  chars: %5.1fk  |  dropped: %6lld  |  frame: %6lld                ",
                     msg_y+1, 1,
-                    static_cast<double>(frametimes.size()) * 1000000.0 / frame10_time, avg_fps,
+                    static_cast<double>(frame_times.size()) * 1000000.0 / static_cast<double>(avg_frame_times_sum), avg_fps,
                     static_cast<double>(rendering_time) / 1000.0, static_cast<double>(printing_time) / 1000.0,
                     cursor_moves, written/1000.0, dropped, curr_frame);
             } else if (curr_w >= 120) {
                 print_ret = snprintf(print_buf + written, print_buffer_size - written,
-                    "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  fps: %6.2f  |  render: %5.1fms  |  print: %5.1fms  |  dropped: %4d  |  frame: %5d          ",
+                    "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  fps: %6.2f  |  render: %5.1fms  |  print: %5.1fms  |  dropped: %6lld  |  frame: %6lld          ",
                     msg_y+1, 1,
-                    static_cast<double>(frametimes.size()) * 1000000.0 / frame10_time,
+                    static_cast<double>(frame_times.size()) * 1000000.0 / static_cast<double>(avg_frame_times_sum),
                     static_cast<double>(rendering_time) / 1000.0, static_cast<double>(printing_time) / 1000.0,
                     dropped, curr_frame);
             } else if (curr_w >= 80) {
                 print_ret = snprintf(print_buf + written, print_buffer_size - written,
-                    "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  fps: %5.1f  |  frame: %5d  |  dropped: %4d      ",
+                    "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  fps: %5.1f  |  frame: %6lld  |  dropped: %6lld      ",
                     msg_y+1, 1,
-                    static_cast<double>(frametimes.size()) * 1000000.0 / frame10_time,
+                    static_cast<double>(frame_times.size()) * 1000000.0 / static_cast<double>(avg_frame_times_sum),
                     curr_frame, dropped);
             } else {
                 print_ret = snprintf(print_buf + written, print_buffer_size - written,
-                    "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  %5d    ",
+                    "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  %6lld    ",
                     msg_y+1, 1, curr_frame);
             }
             if (print_ret > 0 && print_ret < print_buffer_size - written)

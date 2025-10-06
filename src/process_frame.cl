@@ -1,7 +1,6 @@
 #define CHAR_Y 8
 #define CHAR_X 8
 #define DIFF_CASES 44
-#define CHANGE_THRESHOLD 15
 
 constant int pixelmap[DIFF_CASES * CHAR_Y * CHAR_X] = {
     // bottom half block
@@ -175,33 +174,6 @@ constant int pixelmap[DIFF_CASES * CHAR_Y * CHAR_X] = {
     1, 1, 1, 1, 1, 1, 1, 0,
     1, 1, 1, 1, 1, 1, 1, 0,
     1, 1, 1, 1, 1, 1, 1, 0,
-    // bottom left to top right diagonal
-    0, 0, 0, 0, 0, 0, 0, 1,
-    0, 0, 0, 0, 0, 0, 1, 0,
-    0, 0, 0, 0, 0, 1, 0, 0,
-    0, 0, 0, 0, 1, 0, 0, 0,
-    0, 0, 0, 1, 0, 0, 0, 0,
-    0, 0, 1, 0, 0, 0, 0, 0,
-    0, 1, 0, 0, 0, 0, 0, 0,
-    1, 0, 0, 0, 0, 0, 0, 0,
-    // bottom right to top left diagonal
-    1, 0, 0, 0, 0, 0, 0, 0,
-    0, 1, 0, 0, 0, 0, 0, 0,
-    0, 0, 1, 0, 0, 0, 0, 0,
-    0, 0, 0, 1, 0, 0, 0, 0,
-    0, 0, 0, 0, 1, 0, 0, 0,
-    0, 0, 0, 0, 0, 1, 0, 0,
-    0, 0, 0, 0, 0, 0, 1, 0,
-    0, 0, 0, 0, 0, 0, 0, 1,
-    // corner to corner cross shape
-    1, 0, 0, 0, 0, 0, 0, 1,
-    0, 1, 0, 0, 0, 0, 1, 0,
-    0, 0, 1, 0, 0, 1, 0, 0,
-    0, 0, 0, 1, 1, 0, 0, 0,
-    0, 0, 0, 1, 1, 0, 0, 0,
-    0, 0, 1, 0, 0, 1, 0, 0,
-    0, 1, 0, 0, 0, 0, 1, 0,
-    1, 0, 0, 0, 0, 0, 0, 1,
     // thick horizontal middle line
     0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0,
@@ -256,51 +228,6 @@ constant int pixelmap[DIFF_CASES * CHAR_Y * CHAR_X] = {
     0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0,
-    // vertical and right (left T-junction)
-    0, 0, 0, 1, 1, 0, 0, 0,
-    0, 0, 0, 1, 1, 0, 0, 0,
-    0, 0, 0, 1, 1, 0, 0, 0,
-    0, 0, 0, 1, 1, 1, 1, 1,
-    0, 0, 0, 1, 1, 1, 1, 1,
-    0, 0, 0, 1, 1, 0, 0, 0,
-    0, 0, 0, 1, 1, 0, 0, 0,
-    0, 0, 0, 1, 1, 0, 0, 0,
-    // vertical and left (right T-junction)
-    0, 0, 0, 1, 1, 0, 0, 0,
-    0, 0, 0, 1, 1, 0, 0, 0,
-    0, 0, 0, 1, 1, 0, 0, 0,
-    1, 1, 1, 1, 1, 0, 0, 0,
-    1, 1, 1, 1, 1, 0, 0, 0,
-    0, 0, 0, 1, 1, 0, 0, 0,
-    0, 0, 0, 1, 1, 0, 0, 0,
-    0, 0, 0, 1, 1, 0, 0, 0,
-    // down and horizontal (top T-junction)
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    0, 0, 0, 1, 1, 0, 0, 0,
-    0, 0, 0, 1, 1, 0, 0, 0,
-    0, 0, 0, 1, 1, 0, 0, 0,
-    // up and horizontal (bottom T-junction)
-    0, 0, 0, 1, 1, 0, 0, 0,
-    0, 0, 0, 1, 1, 0, 0, 0,
-    0, 0, 0, 1, 1, 0, 0, 0,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    // vertical and horizontal (cross junction)
-    0, 0, 0, 1, 1, 0, 0, 0,
-    0, 0, 0, 1, 1, 0, 0, 0,
-    0, 0, 0, 1, 1, 0, 0, 0,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    0, 0, 0, 1, 1, 0, 0, 0,
-    0, 0, 0, 1, 1, 0, 0, 0,
-    0, 0, 0, 1, 1, 0, 0, 0,
     // lower right triangle
     0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0,
@@ -364,24 +291,6 @@ constant int pixelmap[DIFF_CASES * CHAR_Y * CHAR_X] = {
     0, 0, 1, 1, 1, 1, 0, 0,
     0, 0, 1, 1, 1, 1, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0,
-    // upwards pointing triangle
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 1, 1, 0, 0, 0,
-    0, 0, 1, 1, 1, 1, 0, 0,
-    0, 1, 1, 1, 1, 1, 1, 0,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    // downwards pointing triangle
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    0, 1, 1, 1, 1, 1, 1, 0,
-    0, 0, 1, 1, 1, 1, 0, 0,
-    0, 0, 0, 1, 1, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
     // left pointing triangle
     0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0,
@@ -400,6 +309,96 @@ constant int pixelmap[DIFF_CASES * CHAR_Y * CHAR_X] = {
     1, 1, 1, 1, 1, 0, 0, 0,
     1, 1, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0,
+    // upwards pointing triangle
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 1, 1, 0, 0, 0,
+    0, 0, 1, 1, 1, 1, 0, 0,
+    0, 1, 1, 1, 1, 1, 1, 0,
+    1, 1, 1, 1, 1, 1, 1, 1,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    // downwards pointing triangle
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    1, 1, 1, 1, 1, 1, 1, 1,
+    0, 1, 1, 1, 1, 1, 1, 0,
+    0, 0, 1, 1, 1, 1, 0, 0,
+    0, 0, 0, 1, 1, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    // vertical and right (left T-junction)
+    0, 0, 0, 1, 1, 0, 0, 0,
+    0, 0, 0, 1, 1, 0, 0, 0,
+    0, 0, 0, 1, 1, 0, 0, 0,
+    0, 0, 0, 1, 1, 1, 1, 1,
+    0, 0, 0, 1, 1, 1, 1, 1,
+    0, 0, 0, 1, 1, 0, 0, 0,
+    0, 0, 0, 1, 1, 0, 0, 0,
+    0, 0, 0, 1, 1, 0, 0, 0,
+    // vertical and left (right T-junction)
+    0, 0, 0, 1, 1, 0, 0, 0,
+    0, 0, 0, 1, 1, 0, 0, 0,
+    0, 0, 0, 1, 1, 0, 0, 0,
+    1, 1, 1, 1, 1, 0, 0, 0,
+    1, 1, 1, 1, 1, 0, 0, 0,
+    0, 0, 0, 1, 1, 0, 0, 0,
+    0, 0, 0, 1, 1, 0, 0, 0,
+    0, 0, 0, 1, 1, 0, 0, 0,
+    // down and horizontal (top T-junction)
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1,
+    0, 0, 0, 1, 1, 0, 0, 0,
+    0, 0, 0, 1, 1, 0, 0, 0,
+    0, 0, 0, 1, 1, 0, 0, 0,
+    // up and horizontal (bottom T-junction)
+    0, 0, 0, 1, 1, 0, 0, 0,
+    0, 0, 0, 1, 1, 0, 0, 0,
+    0, 0, 0, 1, 1, 0, 0, 0,
+    1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    // vertical and horizontal (cross junction)
+    0, 0, 0, 1, 1, 0, 0, 0,
+    0, 0, 0, 1, 1, 0, 0, 0,
+    0, 0, 0, 1, 1, 0, 0, 0,
+    1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1,
+    0, 0, 0, 1, 1, 0, 0, 0,
+    0, 0, 0, 1, 1, 0, 0, 0,
+    0, 0, 0, 1, 1, 0, 0, 0,
+    // bottom left to top right diagonal
+    0, 0, 0, 0, 0, 0, 0, 1,
+    0, 0, 0, 0, 0, 0, 1, 0,
+    0, 0, 0, 0, 0, 1, 0, 0,
+    0, 0, 0, 0, 1, 0, 0, 0,
+    0, 0, 0, 1, 0, 0, 0, 0,
+    0, 0, 1, 0, 0, 0, 0, 0,
+    0, 1, 0, 0, 0, 0, 0, 0,
+    1, 0, 0, 0, 0, 0, 0, 0,
+    // bottom right to top left diagonal
+    1, 0, 0, 0, 0, 0, 0, 0,
+    0, 1, 0, 0, 0, 0, 0, 0,
+    0, 0, 1, 0, 0, 0, 0, 0,
+    0, 0, 0, 1, 0, 0, 0, 0,
+    0, 0, 0, 0, 1, 0, 0, 0,
+    0, 0, 0, 0, 0, 1, 0, 0,
+    0, 0, 0, 0, 0, 0, 1, 0,
+    0, 0, 0, 0, 0, 0, 0, 1,
+    // corner to corner cross shape
+    1, 0, 0, 0, 0, 0, 0, 1,
+    0, 1, 0, 0, 0, 0, 1, 0,
+    0, 0, 1, 0, 0, 1, 0, 0,
+    0, 0, 0, 1, 1, 0, 0, 0,
+    0, 0, 0, 1, 1, 0, 0, 0,
+    0, 0, 1, 0, 0, 1, 0, 0,
+    0, 1, 0, 0, 0, 0, 1, 0,
+    1, 0, 0, 0, 0, 0, 0, 1,
 };
 
 float srgb_to_linear(uchar c) {
@@ -418,12 +417,37 @@ uchar linear_to_srgb(float v) {
     return (uchar)(clamp(v * 255.0f, 0.0f, 255.0f));
 }
 
-int perceptual_diff(int r1, int g1, int b1, int r2, int g2, int b2) {
-    int dr = r1 - r2;
-    int dg = g1 - g2;
-    int db = b1 - b2;
-    int idx = 2*dr*dr + 4*dg*dg + 3*db*db;
-    return (int)sqrt((float)idx);
+// use linear RGB to approximate LAB for perceptual difference
+// implements a simplified Oklab approach (faster than full CIELAB)
+void linear_rgb_to_oklab(float r, float g, float b, float* L, float* a, float* b_out) {
+    // approx cone response
+    float l = 0.4122214708f * r + 0.5363325363f * g + 0.0514459929f * b;
+    float m = 0.2119034982f * r + 0.6806995451f * g + 0.1073969566f * b;
+    float s = 0.0883024619f * r + 0.2817188376f * g + 0.6299787005f * b;
+
+    float l_ = pow(l, 1.0f/3.0f);
+    float m_ = pow(m, 1.0f/3.0f);
+    float s_ = pow(s, 1.0f/3.0f);
+
+    *L = 0.2104542553f * l_ + 0.7936177850f * m_ - 0.0040720468f * s_;
+    *a = 1.9779984951f * l_ - 2.4285922050f * m_ + 0.4505937099f * s_;
+    *b_out = 0.0259040371f * l_ + 0.7827717662f * m_ - 0.8086757660f * s_;
+}
+
+// perceptual difference using Oklab color space
+// more perceptually uniform
+float perceptual_diff_linear(float r1, float g1, float b1, float r2, float g2, float b2) {
+    float L1, a1, b1_lab, L2, a2, b2_lab;
+
+    linear_rgb_to_oklab(r1, g1, b1, &L1, &a1, &b1_lab);
+    linear_rgb_to_oklab(r2, g2, b2, &L2, &a2, &b2_lab);
+
+    float dL = L1 - L2;
+    float da = a1 - a2;
+    float db = b1_lab - b2_lab;
+
+    // Oklab differences are roughly perceptually uniform
+    return sqrt(dL*dL + da*da + db*db);
 }
 
 void atomic_add_float(__global float* addr, float val) {
@@ -446,7 +470,6 @@ __kernel void process_characters(
     __global const uchar* frame,
     __global const uchar* old_frame,
     __global uchar* output_frame,
-    __global float* error_buffer,
     __global int* char_indices,
     __global int* fg_colors,
     __global int* bg_colors,
@@ -464,14 +487,15 @@ __kernel void process_characters(
     if (x >= grid_width || y >= grid_height) return;
 
     int char_idx = y * grid_width + x;
-    // assuming x2 scaling for terminal characters
     int sx = CHAR_X;
     int sy = CHAR_X * 2;
     int skipy = sy / CHAR_Y;
     int skipx = sx / CHAR_X;
 
-    // Collect pixel data for this character
-    int pixel[CHAR_Y][CHAR_X][3];
+    // convert all pixels to linear space for the
+    // subsequent pixel processing
+    float pixel_linear[CHAR_Y][CHAR_X][3];
+    float old_pixel_linear[CHAR_Y][CHAR_X][3];
 
     for (int i = 0; i < CHAR_Y; i++) {
         for (int j = 0; j < CHAR_X; j++) {
@@ -479,50 +503,48 @@ __kernel void process_characters(
             int py = y * sy + i * skipy;
             int pix_idx = (py * frame_width + px) * 3;
 
-            for (int k = 0; k < 3; k++) {
-                int val = frame[pix_idx + k];
-                int err_idx = char_idx * 3 + k;
-                pixel[i][j][k] = clamp(val + (int)error_buffer[err_idx], 0, 255);
+            // convert to linear space (BGR ordering)
+            pixel_linear[i][j][0] = srgb_to_linear(frame[pix_idx + 2]); // R
+            pixel_linear[i][j][1] = srgb_to_linear(frame[pix_idx + 1]); // G
+            pixel_linear[i][j][2] = srgb_to_linear(frame[pix_idx + 0]); // B
+
+            if (!refresh) {
+                old_pixel_linear[i][j][0] = srgb_to_linear(old_frame[pix_idx + 2]);
+                old_pixel_linear[i][j][1] = srgb_to_linear(old_frame[pix_idx + 1]);
+                old_pixel_linear[i][j][2] = srgb_to_linear(old_frame[pix_idx + 0]);
             }
         }
     }
 
-    // Calculate difference from old frame
-    int diff = 0;
+    // calculate perceptual difference in linear/perceptual space
+    float max_diff = 0.0f;
     if (refresh) {
-        diff = 255;
+        max_diff = 1000.0f;
     } else {
         for (int i = 0; i < CHAR_Y; i++) {
             for (int j = 0; j < CHAR_X; j++) {
-                int px = x * sx + j * skipx;
-                int py = y * sy + i * skipy;
-                int pix_idx = (py * frame_width + px) * 3;
-
-                int old_b = old_frame[pix_idx + 0];
-                int old_g = old_frame[pix_idx + 1];
-                int old_r = old_frame[pix_idx + 2];
-
-                int d = perceptual_diff(
-                    old_r, old_g, old_b,
-                    pixel[i][j][2], pixel[i][j][1], pixel[i][j][0]
+                float d = perceptual_diff_linear(
+                    old_pixel_linear[i][j][0], old_pixel_linear[i][j][1], old_pixel_linear[i][j][2],
+                    pixel_linear[i][j][0], pixel_linear[i][j][1], pixel_linear[i][j][2]
                 );
-                diff = max(diff, d);
+                max_diff = max(max_diff, d);
             }
         }
     }
 
-    needs_update[char_idx] = (diff >= diffthreshold) ? true : false;
+    // scale diff to roughly match cpu threshold scale
+    float scaled_diff = max_diff * 255.0f;
+    needs_update[char_idx] = (scaled_diff >= diffthreshold) ? true : false;
 
-    if (diff >= diffthreshold) {
-        // find best character using MSE
-        // cpu version just uses minmax
-        int cases[DIFF_CASES];
-        for (int c = 0; c < DIFF_CASES; c++) cases[c] = 0;
+    if (scaled_diff >= diffthreshold) {
+        // find best character using MSE in linear space
+        // cpu uses simple minimax
+        float cases[DIFF_CASES];
 
         for (int case_it = 0; case_it < DIFF_CASES; case_it++) {
-            // calculate average colors for fg and bg
-            float linear_fg[3] = {0, 0, 0};
-            float linear_bg[3] = {0, 0, 0};
+            // calculate average colors
+            float linear_fg[3] = {0.0f, 0.0f, 0.0f};
+            float linear_bg[3] = {0.0f, 0.0f, 0.0f};
             int bg_count = 0, fg_count = 0;
 
             for (int i = 0; i < CHAR_Y; i++) {
@@ -530,30 +552,30 @@ __kernel void process_characters(
                     int pmap_idx = case_it * CHAR_Y * CHAR_X + i * CHAR_X + j;
                     if (pixelmap[pmap_idx]) {
                         for (int k = 0; k < 3; k++)
-                            linear_fg[k] += srgb_to_linear(pixel[i][j][k]);
+                            linear_fg[k] += pixel_linear[i][j][k];
                         fg_count++;
                     } else {
                         for (int k = 0; k < 3; k++)
-                            linear_bg[k] += srgb_to_linear(pixel[i][j][k]);
+                            linear_bg[k] += pixel_linear[i][j][k];
                         bg_count++;
                     }
                 }
             }
 
-            int avg_fg[3], avg_bg[3];
+            // average in linear space
             for (int k = 0; k < 3; k++) {
-                avg_fg[k] = linear_to_srgb(linear_fg[k] / fg_count);
-                avg_bg[k] = linear_to_srgb(linear_bg[k] / bg_count);
+                linear_fg[k] /= (float)fg_count;
+                linear_bg[k] /= (float)bg_count;
             }
 
             // calculate MSE
-            int mse = 0;
+            float mse = 0.0f;
             for (int i = 0; i < CHAR_Y; i++) {
                 for (int j = 0; j < CHAR_X; j++) {
                     int pmap_idx = case_it * CHAR_Y * CHAR_X + i * CHAR_X + j;
-                    int* target = pixelmap[pmap_idx] ? avg_fg : avg_bg;
+                    float* target = pixelmap[pmap_idx] ? linear_fg : linear_bg;
                     for (int k = 0; k < 3; k++) {
-                        int diff = pixel[i][j][k] - target[k];
+                        float diff = pixel_linear[i][j][k] - target[k];
                         mse += diff * diff;
                     }
                 }
@@ -561,7 +583,8 @@ __kernel void process_characters(
             cases[case_it] = mse;
         }
 
-        int mindiff = INT_MAX;
+        // find minimum MSE
+        float mindiff = INFINITY;
         int case_min = 0;
         for (int c = 0; c < DIFF_CASES; c++) {
             if (cases[c] < mindiff) {
@@ -572,9 +595,9 @@ __kernel void process_characters(
 
         char_indices[char_idx] = case_min;
 
-        // Calculate average colors
-        float linear_fg[3] = {0, 0, 0};
-        float linear_bg[3] = {0, 0, 0};
+        // calculate final average colors in linear space
+        float linear_fg[3] = {0.0f, 0.0f, 0.0f};
+        float linear_bg[3] = {0.0f, 0.0f, 0.0f};
         int bg_count = 0, fg_count = 0;
 
         for (int i = 0; i < CHAR_Y; i++) {
@@ -582,27 +605,29 @@ __kernel void process_characters(
                 int pmap_idx = case_min * CHAR_Y * CHAR_X + i * CHAR_X + j;
                 if (pixelmap[pmap_idx]) {
                     for (int k = 0; k < 3; k++)
-                        linear_fg[k] += srgb_to_linear(pixel[i][j][k]);
+                        linear_fg[k] += pixel_linear[i][j][k];
                     fg_count++;
                 } else {
                     for (int k = 0; k < 3; k++)
-                        linear_bg[k] += srgb_to_linear(pixel[i][j][k]);
+                        linear_bg[k] += pixel_linear[i][j][k];
                     bg_count++;
                 }
             }
         }
 
+        // average and convert back to sRGB only at the end
         int pixelchar[3], pixelbg[3];
         for (int k = 0; k < 3; k++) {
-            pixelchar[k] = linear_to_srgb(linear_fg[k] / fg_count);
-            pixelbg[k] = linear_to_srgb(linear_bg[k] / bg_count);
+            pixelchar[k] = linear_to_srgb(linear_fg[k] / (float)fg_count);
+            pixelbg[k] = linear_to_srgb(linear_bg[k] / (float)bg_count);
         }
 
-        // Pack RGB colors
-        fg_colors[char_idx] = (pixelchar[2] << 16) | (pixelchar[1] << 8) | pixelchar[0];
-        bg_colors[char_idx] = (pixelbg[2] << 16) | (pixelbg[1] << 8) | pixelbg[0];
+        // pack RGB colors
+        fg_colors[char_idx] = (pixelchar[0] << 16) | (pixelchar[1] << 8) | pixelchar[2];
+        bg_colors[char_idx] = (pixelbg[0] << 16) | (pixelbg[1] << 8) | pixelbg[2];
 
-        // Update output frame with chosen colors
+        // update output frame
+        // convert averaged linear values back to sRGB
         for (int i = 0; i < CHAR_Y; i++) {
             for (int j = 0; j < CHAR_X; j++) {
                 int px = x * sx + j * skipx;
@@ -610,38 +635,11 @@ __kernel void process_characters(
                 int pix_idx = (py * frame_width + px) * 3;
                 int pmap_idx = case_min * CHAR_Y * CHAR_X + i * CHAR_X + j;
 
-                for (int k = 0; k < 3; k++) {
-                    output_frame[pix_idx + k] = pixelmap[pmap_idx] ? pixelchar[k] : pixelbg[k];
-                }
+                // Output in BGR order
+                output_frame[pix_idx + 2] = pixelmap[pmap_idx] ? pixelchar[0] : pixelbg[0]; // R
+                output_frame[pix_idx + 1] = pixelmap[pmap_idx] ? pixelchar[1] : pixelbg[1]; // G
+                output_frame[pix_idx + 0] = pixelmap[pmap_idx] ? pixelchar[2] : pixelbg[2]; // B
             }
-        }
-
-        // Calculate and store error for dithering
-        for (int k = 0; k < 3; k++) {
-            float total_error = 0;
-            for (int i = 0; i < CHAR_Y; i++) {
-                for (int j = 0; j < CHAR_X; j++) {
-                    int pmap_idx = case_min * CHAR_Y * CHAR_X + i * CHAR_X + j;
-                    int target = pixelmap[pmap_idx] ? pixelchar[k] : pixelbg[k];
-                    total_error += (float)(pixel[i][j][k] - target);
-                }
-            }
-            total_error /= (CHAR_Y * CHAR_X);
-
-            // Atkinson dithering distribution
-            if (x + 1 < grid_width)
-                atomic_add_float(&error_buffer[(y * grid_width + (x + 1)) * 3 + k], total_error * 0.125f);
-            if (x + 2 < grid_width)
-                atomic_add_float(&error_buffer[(y * grid_width + (x + 2)) * 3 + k], total_error * 0.125f);
-            if (y + 1 < grid_height) {
-                atomic_add_float(&error_buffer[((y + 1) * grid_width + x) * 3 + k], total_error * 0.125f);
-                if (x - 1 >= 0)
-                    atomic_add_float(&error_buffer[((y + 1) * grid_width + (x - 1)) * 3 + k], total_error * 0.125f);
-                if (x + 1 < grid_width)
-                    atomic_add_float(&error_buffer[((y + 1) * grid_width + (x + 1)) * 3 + k], total_error * 0.125f);
-            }
-            if (y + 2 < grid_height)
-                atomic_add_float(&error_buffer[((y + 2) * grid_width + x) * 3 + k], total_error * 0.125f);
         }
     }
 }

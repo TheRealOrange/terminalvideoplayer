@@ -22,20 +22,12 @@ const char characters[DIFF_CASES][4] = {
  "\u258d", // left 3/8 vertical
  "\u258b", // left 5/8 vertical
  "\u2589", // left 7/8 vertical
- "\u2571", // bottom left to top right diagonal
- "\u2572", // bottom right to top left diagonal
- "\u2573", // corner to corner cross shape
  "\u2501", // thick horizontal middle line
  "\u2503", // thick vertical center line
  "\u250f", // down and right (top-left corner)
  "\u2513", // down and left (top-right corner)
  "\u2517", // up and right (bottom-left corner)
  "\u251b", // up and left (bottom-right corner)
- "\u2523", // vertical and right (left T-junction)
- "\u252b", // vertical and left (right T-junction)
- "\u2533", // down and horizontal (top T-junction)
- "\u253b", // up and horizontal (bottom T-junction)
- "\u254b", // vertical and horizontal (cross junction)
  "\u25e2", // lower right triangle
  "\u25e3", // lower left triangle
  "\u25e4", // upper left triangle
@@ -43,10 +35,18 @@ const char characters[DIFF_CASES][4] = {
  "\u25a0", // center square
  "\u25aa", // center square with space
  "\u25ae", // center rectangle with space
- "\u25b2", // upwards pointing triangle
- "\u25bc", // downwards pointing triangle
  "\u25c0", // left pointing triangle
  "\u25b6", // right pointing triangle
+ "\u25b2", // upwards pointing triangle
+ "\u25bc", // downwards pointing triangle
+ "\u2523", // vertical and right (left T-junction)
+ "\u252b", // vertical and left (right T-junction)
+ "\u2533", // down and horizontal (top T-junction)
+ "\u253b", // up and horizontal (bottom T-junction)
+ "\u254b", // vertical and horizontal (cross junction)
+ "\u2571", // bottom left to top right diagonal
+ "\u2572", // bottom right to top left diagonal
+ "\u2573", // corner to corner cross shape
 };
 
 const int pixelmap[DIFF_CASES][CHAR_Y * CHAR_X] = {
@@ -240,36 +240,6 @@ const int pixelmap[DIFF_CASES][CHAR_Y * CHAR_X] = {
   1, 1, 1, 1, 1, 1, 1, 0,
   1, 1, 1, 1, 1, 1, 1, 0},
 
- // bottom left to top right diagonal (\u2571)
- {0, 0, 0, 0, 0, 0, 0, 1,
-  0, 0, 0, 0, 0, 0, 1, 0,
-  0, 0, 0, 0, 0, 1, 0, 0,
-  0, 0, 0, 0, 1, 0, 0, 0,
-  0, 0, 0, 1, 0, 0, 0, 0,
-  0, 0, 1, 0, 0, 0, 0, 0,
-  0, 1, 0, 0, 0, 0, 0, 0,
-  1, 0, 0, 0, 0, 0, 0, 0},
-
- // bottom right to top left diagonal (\u2572)
- {1, 0, 0, 0, 0, 0, 0, 0,
-  0, 1, 0, 0, 0, 0, 0, 0,
-  0, 0, 1, 0, 0, 0, 0, 0,
-  0, 0, 0, 1, 0, 0, 0, 0,
-  0, 0, 0, 0, 1, 0, 0, 0,
-  0, 0, 0, 0, 0, 1, 0, 0,
-  0, 0, 0, 0, 0, 0, 1, 0,
-  0, 0, 0, 0, 0, 0, 0, 1},
-
- // corner to corner cross shape (\u2573)
- {1, 0, 0, 0, 0, 0, 0, 1,
-  0, 1, 0, 0, 0, 0, 1, 0,
-  0, 0, 1, 0, 0, 1, 0, 0,
-  0, 0, 0, 1, 1, 0, 0, 0,
-  0, 0, 0, 1, 1, 0, 0, 0,
-  0, 0, 1, 0, 0, 1, 0, 0,
-  0, 1, 0, 0, 0, 0, 1, 0,
-  1, 0, 0, 0, 0, 0, 0, 1},
-
  // thick horizontal middle line (\u2501)
  {0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0,
@@ -329,56 +299,6 @@ const int pixelmap[DIFF_CASES][CHAR_Y * CHAR_X] = {
   0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0},
-
- // vertical and right (left T-junction)
- {0, 0, 0, 1, 1, 0, 0, 0,
-  0, 0, 0, 1, 1, 0, 0, 0,
-  0, 0, 0, 1, 1, 0, 0, 0,
-  0, 0, 0, 1, 1, 1, 1, 1,
-  0, 0, 0, 1, 1, 1, 1, 1,
-  0, 0, 0, 1, 1, 0, 0, 0,
-  0, 0, 0, 1, 1, 0, 0, 0,
-  0, 0, 0, 1, 1, 0, 0, 0},
-
- // vertical and left (right T-junction)
- {0, 0, 0, 1, 1, 0, 0, 0,
-  0, 0, 0, 1, 1, 0, 0, 0,
-  0, 0, 0, 1, 1, 0, 0, 0,
-  1, 1, 1, 1, 1, 0, 0, 0,
-  1, 1, 1, 1, 1, 0, 0, 0,
-  0, 0, 0, 1, 1, 0, 0, 0,
-  0, 0, 0, 1, 1, 0, 0, 0,
-  0, 0, 0, 1, 1, 0, 0, 0},
-
- // down and horizontal (top T-junction)
- {0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0,
-  1, 1, 1, 1, 1, 1, 1, 1,
-  1, 1, 1, 1, 1, 1, 1, 1,
-  0, 0, 0, 1, 1, 0, 0, 0,
-  0, 0, 0, 1, 1, 0, 0, 0,
-  0, 0, 0, 1, 1, 0, 0, 0},
-
- // up and horizontal (bottom T-junction)
- {0, 0, 0, 1, 1, 0, 0, 0,
-  0, 0, 0, 1, 1, 0, 0, 0,
-  0, 0, 0, 1, 1, 0, 0, 0,
-  1, 1, 1, 1, 1, 1, 1, 1,
-  1, 1, 1, 1, 1, 1, 1, 1,
-  0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0},
-
- // vertical and horizontal (cross junction)
- {0, 0, 0, 1, 1, 0, 0, 0,
-  0, 0, 0, 1, 1, 0, 0, 0,
-  0, 0, 0, 1, 1, 0, 0, 0,
-  1, 1, 1, 1, 1, 1, 1, 1,
-  1, 1, 1, 1, 1, 1, 1, 1,
-  0, 0, 0, 1, 1, 0, 0, 0,
-  0, 0, 0, 1, 1, 0, 0, 0,
-  0, 0, 0, 1, 1, 0, 0, 0},
 
  // lower right triangle
  {0, 0, 0, 0, 0, 0, 0, 0,
@@ -450,6 +370,26 @@ const int pixelmap[DIFF_CASES][CHAR_Y * CHAR_X] = {
   0, 0, 1, 1, 1, 1, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0},
 
+ // left pointing triangle
+ {0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 1, 1,
+  0, 0, 0, 1, 1, 1, 1, 1,
+  1, 1, 1, 1, 1, 1, 1, 1,
+  0, 0, 0, 1, 1, 1, 1, 1,
+  0, 0, 0, 0, 0, 0, 1, 1,
+  0, 0, 0, 0, 0, 0, 0, 0},
+
+ // right pointing triangle
+ {0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  1, 1, 0, 0, 0, 0, 0, 0,
+  1, 1, 1, 1, 1, 0, 0, 0,
+  1, 1, 1, 1, 1, 1, 1, 1,
+  1, 1, 1, 1, 1, 0, 0, 0,
+  1, 1, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0},
+
  // upwards pointing triangle
  {0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0,
@@ -470,23 +410,83 @@ const int pixelmap[DIFF_CASES][CHAR_Y * CHAR_X] = {
   0, 0, 0, 1, 1, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0},
 
- // left pointing triangle
+ // vertical and right (left T-junction)
+ {0, 0, 0, 1, 1, 0, 0, 0,
+  0, 0, 0, 1, 1, 0, 0, 0,
+  0, 0, 0, 1, 1, 0, 0, 0,
+  0, 0, 0, 1, 1, 1, 1, 1,
+  0, 0, 0, 1, 1, 1, 1, 1,
+  0, 0, 0, 1, 1, 0, 0, 0,
+  0, 0, 0, 1, 1, 0, 0, 0,
+  0, 0, 0, 1, 1, 0, 0, 0},
+
+ // vertical and left (right T-junction)
+ {0, 0, 0, 1, 1, 0, 0, 0,
+  0, 0, 0, 1, 1, 0, 0, 0,
+  0, 0, 0, 1, 1, 0, 0, 0,
+  1, 1, 1, 1, 1, 0, 0, 0,
+  1, 1, 1, 1, 1, 0, 0, 0,
+  0, 0, 0, 1, 1, 0, 0, 0,
+  0, 0, 0, 1, 1, 0, 0, 0,
+  0, 0, 0, 1, 1, 0, 0, 0},
+
+ // down and horizontal (top T-junction)
  {0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 1, 1,
-  0, 0, 0, 1, 1, 1, 1, 1,
+  0, 0, 0, 0, 0, 0, 0, 0,
   1, 1, 1, 1, 1, 1, 1, 1,
-  0, 0, 0, 1, 1, 1, 1, 1,
-  0, 0, 0, 0, 0, 0, 1, 1,
+  1, 1, 1, 1, 1, 1, 1, 1,
+  0, 0, 0, 1, 1, 0, 0, 0,
+  0, 0, 0, 1, 1, 0, 0, 0,
+  0, 0, 0, 1, 1, 0, 0, 0},
+
+ // up and horizontal (bottom T-junction)
+ {0, 0, 0, 1, 1, 0, 0, 0,
+  0, 0, 0, 1, 1, 0, 0, 0,
+  0, 0, 0, 1, 1, 0, 0, 0,
+  1, 1, 1, 1, 1, 1, 1, 1,
+  1, 1, 1, 1, 1, 1, 1, 1,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0},
 
- // right pointing triangle
- {0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0,
-  1, 1, 0, 0, 0, 0, 0, 0,
-  1, 1, 1, 1, 1, 0, 0, 0,
+ // vertical and horizontal (cross junction)
+ {0, 0, 0, 1, 1, 0, 0, 0,
+  0, 0, 0, 1, 1, 0, 0, 0,
+  0, 0, 0, 1, 1, 0, 0, 0,
   1, 1, 1, 1, 1, 1, 1, 1,
-  1, 1, 1, 1, 1, 0, 0, 0,
-  1, 1, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0},
+  1, 1, 1, 1, 1, 1, 1, 1,
+  0, 0, 0, 1, 1, 0, 0, 0,
+  0, 0, 0, 1, 1, 0, 0, 0,
+  0, 0, 0, 1, 1, 0, 0, 0},
+
+ // bottom left to top right diagonal (\u2571)
+ {0, 0, 0, 0, 0, 0, 0, 1,
+  0, 0, 0, 0, 0, 0, 1, 0,
+  0, 0, 0, 0, 0, 1, 0, 0,
+  0, 0, 0, 0, 1, 0, 0, 0,
+  0, 0, 0, 1, 0, 0, 0, 0,
+  0, 0, 1, 0, 0, 0, 0, 0,
+  0, 1, 0, 0, 0, 0, 0, 0,
+  1, 0, 0, 0, 0, 0, 0, 0},
+
+ // bottom right to top left diagonal (\u2572)
+ {1, 0, 0, 0, 0, 0, 0, 0,
+  0, 1, 0, 0, 0, 0, 0, 0,
+  0, 0, 1, 0, 0, 0, 0, 0,
+  0, 0, 0, 1, 0, 0, 0, 0,
+  0, 0, 0, 0, 1, 0, 0, 0,
+  0, 0, 0, 0, 0, 1, 0, 0,
+  0, 0, 0, 0, 0, 0, 1, 0,
+  0, 0, 0, 0, 0, 0, 0, 1},
+
+ // corner to corner cross shape (\u2573)
+ {1, 0, 0, 0, 0, 0, 0, 1,
+  0, 1, 0, 0, 0, 0, 1, 0,
+  0, 0, 1, 0, 0, 1, 0, 0,
+  0, 0, 0, 1, 1, 0, 0, 0,
+  0, 0, 0, 1, 1, 0, 0, 0,
+  0, 0, 1, 0, 0, 1, 0, 0,
+  0, 1, 0, 0, 0, 0, 1, 0,
+  1, 0, 0, 0, 0, 0, 0, 1},
 };

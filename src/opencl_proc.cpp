@@ -21,7 +21,6 @@ void OpenCLProc::cleanup() {
     if (d_frame) clReleaseMemObject(d_frame);
     if (d_old_frame) clReleaseMemObject(d_old_frame);
     if (d_output_frame) clReleaseMemObject(d_output_frame);
-    if (d_error_buffer) clReleaseMemObject(d_error_buffer);
     if (d_char_indices) clReleaseMemObject(d_char_indices);
     if (d_fg_colors) clReleaseMemObject(d_fg_colors);
     if (d_bg_colors) clReleaseMemObject(d_bg_colors);
@@ -124,7 +123,6 @@ bool OpenCLProc::createBuffers(size_t frame_size, size_t grid_size) {
     if (d_frame) clReleaseMemObject(d_frame);
     if (d_old_frame) clReleaseMemObject(d_old_frame);
     if (d_output_frame) clReleaseMemObject(d_output_frame);
-    if (d_error_buffer) clReleaseMemObject(d_error_buffer);
     if (d_char_indices) clReleaseMemObject(d_char_indices);
     if (d_fg_colors) clReleaseMemObject(d_fg_colors);
     if (d_bg_colors) clReleaseMemObject(d_bg_colors);
@@ -132,7 +130,6 @@ bool OpenCLProc::createBuffers(size_t frame_size, size_t grid_size) {
     d_frame = nullptr;
     d_old_frame = nullptr;
     d_output_frame = nullptr;
-    d_error_buffer = nullptr;
     d_char_indices = nullptr;
     d_fg_colors = nullptr;
     d_bg_colors = nullptr;
@@ -146,10 +143,6 @@ bool OpenCLProc::createBuffers(size_t frame_size, size_t grid_size) {
     if (err != CL_SUCCESS) return false;
 
     d_output_frame = clCreateBuffer(context, CL_MEM_WRITE_ONLY, frame_size, nullptr, &err);
-    if (err != CL_SUCCESS) return false;
-
-    d_error_buffer = clCreateBuffer(context, CL_MEM_READ_WRITE,
-                                    grid_size * 3 * sizeof(float), nullptr, &err);
     if (err != CL_SUCCESS) return false;
 
     d_char_indices = clCreateBuffer(context, CL_MEM_WRITE_ONLY,
@@ -177,7 +170,6 @@ void OpenCLProc::processFrame(
     const char* frame,
     const char* old_frame,
     char* output_frame,
-    float* error_buffer,
     int width,
     int height,
     int char_width,
@@ -206,9 +198,6 @@ void OpenCLProc::processFrame(
                                frame, 0, nullptr, nullptr);
     err |= clEnqueueWriteBuffer(queue, d_old_frame, CL_FALSE, 0, frame_size,
                                 old_frame, 0, nullptr, nullptr);
-    err |= clEnqueueWriteBuffer(queue, d_error_buffer, CL_FALSE, 0,
-                                grid_size * 3 * sizeof(float),
-                                error_buffer, 0, nullptr, nullptr);
 
     if (err != CL_SUCCESS) {
         std::cerr << "Failed to upload data to GPU" << std::endl;
@@ -220,17 +209,16 @@ void OpenCLProc::processFrame(
     clSetKernelArg(kernel_process, 0, sizeof(cl_mem), &d_frame);
     clSetKernelArg(kernel_process, 1, sizeof(cl_mem), &d_old_frame);
     clSetKernelArg(kernel_process, 2, sizeof(cl_mem), &d_output_frame);
-    clSetKernelArg(kernel_process, 3, sizeof(cl_mem), &d_error_buffer);
-    clSetKernelArg(kernel_process, 4, sizeof(cl_mem), &d_char_indices);
-    clSetKernelArg(kernel_process, 5, sizeof(cl_mem), &d_fg_colors);
-    clSetKernelArg(kernel_process, 6, sizeof(cl_mem), &d_bg_colors);
-    clSetKernelArg(kernel_process, 7, sizeof(cl_mem), &d_needs_update);
-    clSetKernelArg(kernel_process, 8, sizeof(int), &width);
-    clSetKernelArg(kernel_process, 9, sizeof(int), &height);
-    clSetKernelArg(kernel_process, 10, sizeof(int), &char_width);
-    clSetKernelArg(kernel_process, 11, sizeof(int), &char_height);
-    clSetKernelArg(kernel_process, 12, sizeof(int), &diffthreshold);
-    clSetKernelArg(kernel_process, 13, sizeof(int), &refresh_int);
+    clSetKernelArg(kernel_process, 3, sizeof(cl_mem), &d_char_indices);
+    clSetKernelArg(kernel_process, 4, sizeof(cl_mem), &d_fg_colors);
+    clSetKernelArg(kernel_process, 5, sizeof(cl_mem), &d_bg_colors);
+    clSetKernelArg(kernel_process, 6, sizeof(cl_mem), &d_needs_update);
+    clSetKernelArg(kernel_process, 7, sizeof(int), &width);
+    clSetKernelArg(kernel_process, 8, sizeof(int), &height);
+    clSetKernelArg(kernel_process, 9, sizeof(int), &char_width);
+    clSetKernelArg(kernel_process, 10, sizeof(int), &char_height);
+    clSetKernelArg(kernel_process, 11, sizeof(int), &diffthreshold);
+    clSetKernelArg(kernel_process, 12, sizeof(int), &refresh_int);
 
     // Execute kernel
     size_t global_work_size[2] = {(size_t)char_width, (size_t)char_height};
@@ -245,15 +233,9 @@ void OpenCLProc::processFrame(
     // Download results
     err = clEnqueueReadBuffer(queue, d_output_frame, CL_FALSE, 0, frame_size,
                               output_frame, 0, nullptr, nullptr);
-    if (err != CL_SUCCESS) std::cerr << "Failed to download frame from GPU" << std::endl;
-    err |= clEnqueueReadBuffer(queue, d_error_buffer, CL_FALSE, 0,
-                               grid_size * 3 * sizeof(float),
-                               error_buffer, 0, nullptr, nullptr);
-    if (err != CL_SUCCESS) std::cerr << "Failed to download error buffer from GPU" << std::endl;
     err |= clEnqueueReadBuffer(queue, d_char_indices, CL_FALSE, 0,
                                grid_size * sizeof(int),
                                char_indices, 0, nullptr, nullptr);
-    if (err != CL_SUCCESS) std::cerr << "Failed to download indices from GPU" << std::endl;
     err |= clEnqueueReadBuffer(queue, d_fg_colors, CL_FALSE, 0,
                                grid_size * sizeof(int),
                                fg_colors, 0, nullptr, nullptr);

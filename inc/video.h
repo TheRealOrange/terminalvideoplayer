@@ -28,7 +28,7 @@ public:
 
     void setResize(int w, int h);
     [[nodiscard]] bool isOpened() const;
-    double get_fps() const;
+    [[nodiscard]] double get_fps() const;
     [[nodiscard]] int get_width() const;
     [[nodiscard]] int get_height() const;
     [[nodiscard]] int get_dst_buf_size() const;
@@ -37,8 +37,8 @@ public:
 
     // audio methods
     [[nodiscard]] bool has_audio() const;
-    int get_audio_sample_rate() const;
-    int get_audio_channels() const;
+    [[nodiscard]] int get_audio_sample_rate() const;
+    [[nodiscard]] int get_audio_channels() const;
 
 private:
     AVFormatContext* inctx = nullptr;
