@@ -58,6 +58,7 @@ private:
   cl_mem d_frame = nullptr;
   cl_mem d_old_frame = nullptr;
   cl_mem d_output_frame = nullptr;
+  cl_mem d_error_buffer = nullptr;
   cl_mem d_char_indices = nullptr;
   cl_mem d_fg_colors = nullptr;
   cl_mem d_bg_colors = nullptr;

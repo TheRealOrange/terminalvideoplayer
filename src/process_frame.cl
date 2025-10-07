@@ -67,6 +67,7 @@ __kernel void process_characters(
     __global const uchar* frame,
     __global const uchar* old_frame,
     __global uchar* output_frame,
+    __global float* error_buffer,
     __global int* char_indices,
     __global int* fg_colors,
     __global int* bg_colors,
@@ -101,10 +102,15 @@ __kernel void process_characters(
             int py = y * sy + i * skipy;
             int pix_idx = (py * frame_width + px) * 3;
 
+            // Apply accumulated error from previous frame
             // convert to linear space (BGR ordering)
-            pixel_linear[i][j][0] = srgb_to_linear(frame[pix_idx + 2]); // R
-            pixel_linear[i][j][1] = srgb_to_linear(frame[pix_idx + 1]); // G
-            pixel_linear[i][j][2] = srgb_to_linear(frame[pix_idx + 0]); // B
+            int err_idx = char_idx * 3;
+            pixel_linear[i][j][0] = srgb_to_linear(clamp(frame[pix_idx + 2] + error_buffer[err_idx + 0], 0.0f, 255.0f)); // R
+            pixel_linear[i][j][1] = srgb_to_linear(clamp(frame[pix_idx + 1] + error_buffer[err_idx + 1], 0.0f, 255.0f)); // G
+            pixel_linear[i][j][2] = srgb_to_linear(clamp(frame[pix_idx + 0] + error_buffer[err_idx + 2], 0.0f, 255.0f)); // B
+            //pixel_linear[i][j][0] = srgb_to_linear(frame[pix_idx + 2]); // R
+            //pixel_linear[i][j][1] = srgb_to_linear(frame[pix_idx + 1]); // G
+            //pixel_linear[i][j][2] = srgb_to_linear(frame[pix_idx + 0]); // B
 
             if (!refresh) {
                 old_pixel_linear[i][j][0] = srgb_to_linear(old_frame[pix_idx + 2]);
@@ -112,6 +118,10 @@ __kernel void process_characters(
                 old_pixel_linear[i][j][2] = srgb_to_linear(old_frame[pix_idx + 0]);
             }
         }
+    }
+
+    for (int k = 0; k < 3; k++) {
+        error_buffer[char_idx * 3 + k] *= 0.6f;
     }
 
     // calculate perceptual difference in linear/perceptual space
@@ -218,6 +228,63 @@ __kernel void process_characters(
         for (int k = 0; k < 3; k++) {
             pixelchar[k] = linear_to_srgb(linear_fg[k] / (float)fg_count);
             pixelbg[k] = linear_to_srgb(linear_bg[k] / (float)bg_count);
+        }
+
+        // calculate and distribute dithering error using Atkinson dithering
+        for (int k = 0; k < 3; k++) {
+            float total_error = 0.0f;
+
+            // calculate average error across all pixels in this character
+            for (int i = 0; i < CHAR_Y; i++) {
+                for (int j = 0; j < CHAR_X; j++) {
+                    int pmap_idx = case_min * CHAR_Y * CHAR_X + i * CHAR_X + j;
+                    int target = pixelmap[pmap_idx] ? pixelchar[k] : pixelbg[k];
+                    float pixel_srgb = linear_to_srgb(pixel_linear[i][j][k]);
+                    total_error += (pixel_srgb - (float)target);
+                }
+            }
+            total_error /= (float)(CHAR_Y * CHAR_X);
+
+            // Atkinson dithering: distribute error to neighboring characters
+            // Use atomic operations to prevent race conditions
+            int base_err_idx = char_idx * 3 + k;
+
+            // right (x+1)
+            if (x + 1 < grid_width) {
+                atomic_add_float(&error_buffer[(y * grid_width + (x + 1)) * 3 + k],
+                                total_error * 0.125f);
+            }
+
+            // two right (x+2)
+            if (x + 2 < grid_width) {
+                atomic_add_float(&error_buffer[(y * grid_width + (x + 2)) * 3 + k],
+                                total_error * 0.125f);
+            }
+
+            // below row (y+1)
+            if (y + 1 < grid_height) {
+                // below (x, y+1)
+                atomic_add_float(&error_buffer[((y + 1) * grid_width + x) * 3 + k],
+                                total_error * 0.125f);
+
+                // below-left (x-1, y+1)
+                if (x - 1 >= 0) {
+                    atomic_add_float(&error_buffer[((y + 1) * grid_width + (x - 1)) * 3 + k],
+                                    total_error * 0.125f);
+                }
+
+                // below-right (x+1, y+1)
+                if (x + 1 < grid_width) {
+                    atomic_add_float(&error_buffer[((y + 1) * grid_width + (x + 1)) * 3 + k],
+                                    total_error * 0.125f);
+                }
+            }
+
+            // two below (y+2)
+            if (y + 2 < grid_height) {
+                atomic_add_float(&error_buffer[((y + 2) * grid_width + x) * 3 + k],
+                                total_error * 0.125f);
+            }
         }
 
         // pack RGB colors
