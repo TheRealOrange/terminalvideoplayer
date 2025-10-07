@@ -823,10 +823,14 @@ int main(int argc, char *argv[]) {
 
                             bgsame = false;
                             pixelsame = false;
-                            diffbg = abs(prevpixelbg[2] - pixelbg[2]) + abs(prevpixelbg[1] - pixelbg[1]) + abs(
-                                         prevpixelbg[0] - pixelbg[0]);
-                            diffpixel = abs(prevpixel[2] - pixelchar[2]) + abs(prevpixel[1] - pixelchar[1]) + abs(
-                                            prevpixel[0] - pixelchar[0]);
+                            diffbg = perceptual_diff(
+                                prevpixelbg[2], prevpixelbg[1], prevpixelbg[0],
+                                pixelbg[2], pixelbg[1], pixelbg[0]
+                            );
+                            diffpixel = perceptual_diff(
+                                prevpixel[2], prevpixel[1], prevpixel[0],
+                                pixelchar[2], pixelchar[1], pixelchar[0]
+                            );
 
                             if (diffbg < CHANGE_THRESHOLD) {
                                 for (int k = 0; k < 3; k++) pixelbg[k] = prevpixelbg[k];
