@@ -215,6 +215,7 @@ void OpenCLProc::processFrame(
     int char_height,
     int diffthreshold,
     bool refresh,
+    bool dither,
     int *char_indices,
     int *fg_colors,
     int *bg_colors,
@@ -259,7 +260,8 @@ void OpenCLProc::processFrame(
     clSetKernelArg(kernel_process, 11, sizeof(int), &char_height);
     clSetKernelArg(kernel_process, 12, sizeof(int), &diffthreshold);
     clSetKernelArg(kernel_process, 13, sizeof(int), &refresh_int);
-    clSetKernelArg(kernel_process, 14, sizeof(cl_mem), &d_pixelmap);
+    clSetKernelArg(kernel_process, 14, sizeof(bool), &dither);
+    clSetKernelArg(kernel_process, 15, sizeof(cl_mem), &d_pixelmap);
 
     // Execute kernel
     size_t global_work_size[2] = {(size_t) char_width, (size_t) char_height};

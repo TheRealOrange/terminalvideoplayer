@@ -41,6 +41,7 @@ Usage: tvp <video_file> [diff_threshold] [options]
 Options:
   --force-cpu     Force CPU computation
   --no-audio      Disable audio playback
+  --dither        Enable dithering
   --print-usage   Print character usage rates
   --help          Show this help message
 ```

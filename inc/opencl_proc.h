@@ -38,6 +38,7 @@ public:
     int char_height,
     int diffthreshold,
     bool refresh,
+    bool dither,
     // Output arrays
     int *char_indices, // which character to use
     int *fg_colors, // RGB foreground colors (packed)

@@ -356,12 +356,14 @@ int main(int argc, char *argv[]) {
     const char *video_file = nullptr;
     bool enable_opencl = true;
     bool enable_audio = true;
+    bool dither_enable = false;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--help") == 0) {
             printf("Usage: %s <video_file> [diff_threshold] [options]\n", argv[0]);
             printf("Options:\n");
             printf("  --force-cpu     Force CPU computation\n");
             printf("  --no-audio      Disable audio playback\n");
+            printf("  --dither        Enable dithering\n");
             printf("  --print-usage   Print character usage rates\n");
             printf("  --help          Show this help message\n");
             return 0;
@@ -370,6 +372,8 @@ int main(int argc, char *argv[]) {
             enable_opencl = false;
         } else if (strcmp(argv[i], "--no-audio") == 0) {
             enable_audio = false;
+        } else if (strcmp(argv[i], "--dither") == 0) {
+            dither_enable = true;
         } else if (strcmp(argv[i], "--print-usage") == 0) {
             print_hit_rate = true;
         } else if (argv[i][0] != '-' && video_file == nullptr) {
@@ -725,7 +729,7 @@ int main(int argc, char *argv[]) {
             int video_height = cap.get_height() / sy;
             int video_width = cap.get_width() / sx;
             if (!use_opencl) {
-                if (error_buffer) {
+                if (error_buffer && dither_enable) {
                     for (int i = 0; i < video_height * video_width * 3; i++) {
                         error_buffer[i] *= CPU_DITHERING_DECAY;
                     }
@@ -799,7 +803,7 @@ int main(int argc, char *argv[]) {
                     frame, old, old,
                     cap.get_width(), cap.get_height(),
                     video_width, video_height,
-                    diff_threshold, refresh,
+                    diff_threshold, refresh, dither_enable,
                     char_indices, fg_colors, bg_colors, needs_update
                 );
 
@@ -914,10 +918,12 @@ int main(int argc, char *argv[]) {
                                     pixel[i][j][k] = static_cast<unsigned char>(*(
                                         row[i] + (x * sx + j * skipx) * 3 + k));
 
-                                    // apply error from previous character
-                                    int err_idx = (ay * video_width + x) * 3 + k;
-                                    pixel[i][j][k] = std::clamp(
-                                        pixel[i][j][k] + static_cast<int>(error_buffer[err_idx]), 0, 255);
+                                    if (dither_enable) {
+                                        // apply error from previous character
+                                        int err_idx = (ay * video_width + x) * 3 + k;
+                                        pixel[i][j][k] = std::clamp(
+                                            pixel[i][j][k] + static_cast<int>(error_buffer[err_idx]), 0, 255);
+                                    }
                                 }
 
                         diff = 0;
@@ -1055,47 +1061,49 @@ int main(int argc, char *argv[]) {
                                             *(oldrow[i] + (x * sx + j * skipx) * 3 + k) = static_cast<char>(pixelbg[k]);
                                     }
 
-                            // diffuse color errors
-                            for (int k = 0; k < 3; k++) {
-                                float total_error = 0;
-                                for (int i = 0; i < CHAR_Y; i++) {
-                                    for (int j = 0; j < CHAR_X; j++) {
-                                        int target = pixelmap[case_min][i * CHAR_X + j] ? pixelchar[k] : pixelbg[k];
-                                        total_error += static_cast<float>(pixel[i][j][k] - target);
+                            if (dither_enable) {
+                                // diffuse color errors
+                                for (int k = 0; k < 3; k++) {
+                                    float total_error = 0;
+                                    for (int i = 0; i < CHAR_Y; i++) {
+                                        for (int j = 0; j < CHAR_X; j++) {
+                                            int target = pixelmap[case_min][i * CHAR_X + j] ? pixelchar[k] : pixelbg[k];
+                                            total_error += static_cast<float>(pixel[i][j][k] - target);
+                                        }
                                     }
-                                }
-                                total_error /= (CHAR_Y * CHAR_X);
+                                    total_error /= (CHAR_Y * CHAR_X);
 
-                                // distribute error per channel
-                                int err_idx_right = (ay * video_width + (x + 1)) * 3 + k;
-                                int err_idx_below = ((ay + 1) * video_width + x) * 3 + k;
-                                int err_idx_diag = ((ay + 1) * video_width + (x + 1)) * 3 + k;
+                                    // distribute error per channel
+                                    int err_idx_right = (ay * video_width + (x + 1)) * 3 + k;
+                                    int err_idx_below = ((ay + 1) * video_width + x) * 3 + k;
+                                    int err_idx_diag = ((ay + 1) * video_width + (x + 1)) * 3 + k;
 
 #ifdef ATKINSON_DITHERING
-                                // atkinson dithering
-                                if (x + 1 < video_width)
-                                    error_buffer[err_idx_right] += total_error * 0.125f;
-                                if (x + 2 < video_width)
-                                    error_buffer[(ay * video_width + (x + 2)) * 3 + k] += total_error * 0.125f;
-                                if (ay + 1 < video_height) {
-                                    error_buffer[err_idx_below] += total_error * 0.125f;
-                                    if (x - 1 >= 0)
-                                        error_buffer[((ay + 1) * video_width + (x - 1)) * 3 + k] += total_error *
-                                                0.125f;
+                                    // atkinson dithering
                                     if (x + 1 < video_width)
-                                        error_buffer[err_idx_diag] += total_error * 0.125f;
-                                }
-                                if (ay + 2 < video_height)
-                                    error_buffer[((ay + 2) * video_width + x) * 3 + k] += total_error * 0.125f;
+                                        error_buffer[err_idx_right] += total_error * 0.125f;
+                                    if (x + 2 < video_width)
+                                        error_buffer[(ay * video_width + (x + 2)) * 3 + k] += total_error * 0.125f;
+                                    if (ay + 1 < video_height) {
+                                        error_buffer[err_idx_below] += total_error * 0.125f;
+                                        if (x - 1 >= 0)
+                                            error_buffer[((ay + 1) * video_width + (x - 1)) * 3 + k] += total_error *
+                                                    0.125f;
+                                        if (x + 1 < video_width)
+                                            error_buffer[err_idx_diag] += total_error * 0.125f;
+                                    }
+                                    if (ay + 2 < video_height)
+                                        error_buffer[((ay + 2) * video_width + x) * 3 + k] += total_error * 0.125f;
 #else
-                                // floyd-steinberg dithering
-                                if (x + 1 < video_width)
-                                    error_buffer[err_idx_right] += total_error * 0.4375f; // 7/16 right
-                                if (ay + 1 < video_height)
-                                    error_buffer[err_idx_below] += total_error * 0.3125f; // 5/16 below
-                                if (x + 1 < video_width && ay + 1 < video_height)
-                                    error_buffer[err_idx_diag] += total_error * 0.25f; // 4/16 diagonal
+                                    // floyd-steinberg dithering
+                                    if (x + 1 < video_width)
+                                        error_buffer[err_idx_right] += total_error * 0.4375f; // 7/16 right
+                                    if (ay + 1 < video_height)
+                                        error_buffer[err_idx_below] += total_error * 0.3125f; // 5/16 below
+                                    if (x + 1 < video_width && ay + 1 < video_height)
+                                        error_buffer[err_idx_diag] += total_error * 0.25f; // 4/16 diagonal
 #endif
+                                }
                             }
 
                             // if the cursor is already in the right position, do not print the ansi move cursor command
