@@ -476,15 +476,20 @@ int main(int argc, char *argv[]) {
     bool enable_opencl = true;
     bool enable_audio = true;
     bool dither_enable = false;
+    bool use_stdin = false;
+    bool file_arg_provided = false;
+
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--help") == 0) {
-            printf("Usage: %s <video_file> [diff_threshold] [options]\n", argv[0]);
+            printf("Usage: %s [video_file|-] [diff_threshold] [options]\n", argv[0]);
+            printf("If no file is provided, reads from stdin\n\n");
             printf("Options:\n");
-            printf("  --force-cpu     Force CPU computation\n");
-            printf("  --no-audio      Disable audio playback\n");
-            printf("  --dither        Enable dithering\n");
-            printf("  --print-usage   Print character usage rates\n");
-            printf("  --help          Show this help message\n");
+            printf("  -                Explicitly use stdin as input\n");
+            printf("  --force-cpu      Force CPU computation\n");
+            printf("  --no-audio       Disable audio playback\n");
+            printf("  --dither         Enable dithering\n");
+            printf("  --print-usage    Print character usage rates\n");
+            printf("  --help           Show this help message\n");
             return 0;
         }
         if (strcmp(argv[i], "--force-cpu") == 0) {
@@ -495,26 +500,54 @@ int main(int argc, char *argv[]) {
             dither_enable = true;
         } else if (strcmp(argv[i], "--print-usage") == 0) {
             print_hit_rate = true;
+        } else if (strcmp(argv[i], "-") == 0 && video_file == nullptr) {
+            use_stdin = true;
+            video_file = "pipe:0";  // ffmpeg name for stdin
+            file_arg_provided = true;
         } else if (argv[i][0] != '-' && video_file == nullptr) {
             video_file = argv[i];
+            file_arg_provided = true;
         } else if (argv[i][0] != '-' && video_file != nullptr) {
             diff_threshold = std::stoi(argv[i], nullptr, 10);
         }
     }
 
-    // check if number of arguments is correct
-    if (argc <= 1 || strlen(argv[1]) <= 0) {
-        printf("\x1B[0mplease provide the filename as the first input argument");
-        fflush(stdout);
-        return 0;
-    }
-    // apparently macos uses std::__fs::filesystem
-#if defined(__APPLE__)
-    if (std::__fs::filesystem::exists(argv[1])) {
+    // if no file provided, check if stdin is piped
+    if (!file_arg_provided) {
+#if defined(_WIN32)
+        // Windows: check if stdin is redirected
+        HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
+        DWORD mode;
+        bool is_piped = !GetConsoleMode(hStdin, &mode);
 #else
-        if (std::filesystem::exists(argv[1])) {
+        // Unix: check if stdin is a pipe or regular file (not a terminal)
+        bool is_piped = !isatty(STDIN_FILENO);
 #endif
 
+        if (is_piped) {
+            use_stdin = true;
+            video_file = "pipe:0";
+        } else {
+            printf("\x1B[0mNo input provided. Usage:\n");
+            printf("  %s <video_file>              Play a video file\n", argv[0]);
+            printf("  <command> | %s               Read from pipe\n", argv[0]);
+            printf("  %s --help                    Show detailed help\n", argv[0]);
+            fflush(stdout);
+            return 0;
+        }
+    }
+
+    // skip file existence check if using stdin
+    bool file_exists = use_stdin;
+    if (!use_stdin) {
+#if defined(__APPLE__)
+        file_exists = std::__fs::filesystem::exists(video_file);
+#else
+        file_exists = std::filesystem::exists(video_file);
+#endif
+    }
+
+    if (file_exists) {
         // if the diff threshold argument is specified, and is within range, use the specified diff
         diff_threshold = std::max(std::min(255, diff_threshold), 0);
 
@@ -536,7 +569,7 @@ int main(int argc, char *argv[]) {
 #endif
 
         // open the video file and create the decode object
-        video cap(argv[1], -1, -1, enable_audio);
+        video cap(video_file, -1, -1, enable_audio);
 
         // check if successfully opened
         if (!cap.isOpened()) {

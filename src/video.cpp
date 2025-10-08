@@ -43,10 +43,24 @@ void audio_callback([[maybe_unused]] void *userdata, uint8_t *stream, int len) {
 video::video(const char filename[], int w, int h, bool enable_audio) {
     errbuf[0] = '\0';
     av_log_set_level(AV_LOG_ERROR);
-    int ret = avformat_open_input(&inctx, filename, nullptr, nullptr);
+
+    // check if reading from stdin
+    bool is_pipe = (strcmp(filename, "pipe:0") == 0 || strcmp(filename, "-") == 0);
+    const char *input_name = is_pipe ? "pipe:0" : filename;
+
+    AVDictionary *options = nullptr;
+    if (is_pipe) {
+        // set options for pipe handling
+        av_dict_set(&options, "analyzeduration", "10000000", 0);  // 10 seconds
+        av_dict_set(&options, "probesize", "10000000", 0);         // 10MB
+    }
+
+    int ret = avformat_open_input(&inctx, input_name, nullptr, &options);
+    if (options) av_dict_free(&options);
+
     if (ret < 0) {
         av_make_error_string(errbuf, sizeof(errbuf), ret);
-        fprintf(stderr, "fail to avformat_open_input(%s): %s\n", filename, errbuf);
+        fprintf(stderr, "fail to avformat_open_input(%s): %s\n", input_name, errbuf);
         return;
     }
 
