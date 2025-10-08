@@ -30,7 +30,7 @@ https://github.com/user-attachments/assets/06f54f94-030a-4e1a-a52b-ed01517ff0cd
 ## Features
 
 - Audio playback, using [SDL2](https://www.libsdl.org)
-- Expanded characterset of 44 (OpenCL) or 22 (CPU) Unicode characters for better representation of the image
+- Expanded characterset of 44 (OpenCL) or 19 (CPU) Unicode characters for better representation of the image
 - OpenCL acceleration for systems with supported devices to render the frames using the expanded characterset
 - Perceptual color optimisation using either fast weighted RGB or Oklab color space
 - Resizable terminal video playback
@@ -93,11 +93,11 @@ Clearly there is potential here. By using the unicode quarter block characters, 
 - ▍  (U+258D left 3/8 vertical)
 - ▋  (U+258B left 5/8 vertical)
 - ▉  (U+2589 left 7/8 vertical)
+
+**OpenCL only (excluded from CPU for performance):**
 - ━  (U+2501 thick horizontal middle line)
 - ┃  (U+2503 thick vertical center line)
 - ■  (U+25A0 center square)
-
-**OpenCL only (excluded from CPU for performance):**
 - ▪  (U+25AA center square with space)
 - ▮  (U+25AE center rectangle with space)
 - ◀  (U+25C0 left pointing triangle)

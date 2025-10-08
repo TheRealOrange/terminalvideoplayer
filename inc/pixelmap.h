@@ -22,11 +22,11 @@ const char characters[DIFF_CASES][4] = {
  "\u258d", // left 3/8 vertical
  "\u258b", // left 5/8 vertical
  "\u2589", // left 7/8 vertical
+
+ // OpenCL only characters
  "\u2501", // thick horizontal middle line
  "\u2503", // thick vertical center line
  "\u25a0", // center square
-
- // OpenCL only characters
  "\u25aa", // center square with space
  "\u25ae", // center rectangle with space
  "\u25c0", // left pointing triangle

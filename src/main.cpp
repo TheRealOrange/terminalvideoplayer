@@ -36,7 +36,10 @@
 
 // use reduced character set for cpu to reduce
 // computations and speedup rendering time
-#define CPU_REDUCED_CHARSET_AMT 22
+#define CPU_REDUCED_CHARSET_AMT 25
+
+#define HEADER_SPACING_LINES 3
+#define PRINT_CHARS_MARGIN 6
 
 #include "pixelmap.h"
 
@@ -182,6 +185,19 @@ void terminateProgram([[maybe_unused]] int sig_num) {
     int stats_start_row, stats_start_col;
     int usage_start_row, usage_start_col;
 
+    // determine how many entries we can display
+    int max_available_lines = side_by_side ? std::max(stats_lines, term_h - 2) : term_h - 2;
+    int max_entries = max_available_lines - HEADER_SPACING_LINES - PRINT_CHARS_MARGIN;
+    if (max_entries < 1) max_entries = 1;
+
+    int entries_to_show = std::min(used_chars, max_entries);
+    int hidden_entries = used_chars - entries_to_show;
+    bool show_hidden_message = (hidden_entries > 0);
+
+    // recalculate usage_lines with truncation
+    usage_lines = entries_to_show + HEADER_SPACING_LINES;
+    if (show_hidden_message) usage_lines++;
+
     if (side_by_side) {
         // center both boxes as a combined unit
         int combined_width = stats_width + spacing + usage_width;
@@ -240,19 +256,6 @@ void terminateProgram([[maybe_unused]] int sig_num) {
         // descending sort by usage count
         std::sort(sorted_indices, sorted_indices + DIFF_CASES,
                   [](const int a, const int b) { return char_usage[a] > char_usage[b]; });
-
-        // determine how many entries we can display
-        int max_available_lines = side_by_side ? std::max(stats_lines, term_h - 2) : term_h - 2;
-        int max_entries = max_available_lines - 3; // subtract header and spacing
-        if (max_entries < 1) max_entries = 1;
-
-        int entries_to_show = std::min(used_chars, max_entries);
-        int hidden_entries = used_chars - entries_to_show;
-        bool show_hidden_message = (hidden_entries > 0);
-
-        // recalculate usage_lines with truncation
-        usage_lines = entries_to_show + 3; // +3 for header, spacing, and potential hidden message
-        if (show_hidden_message) usage_lines++;
 
         // recalculate position if needed
         if (!side_by_side) {
@@ -608,6 +611,7 @@ int main(int argc, char *argv[]) {
         int print_ret;
 
         // opencl buffers
+        // actually char indices is also used for stats tracking
         int *char_indices = nullptr;
         int *fg_colors = nullptr;
         int *bg_colors = nullptr;
@@ -720,10 +724,11 @@ int main(int argc, char *argv[]) {
                         realloc_render_buf = static_cast<char *>(std::realloc(render_buffer, print_buffer_size));
                     }
 
-#ifdef HAVE_OPENCL
-                    // realloc opencl buffers
                     auto *realloc_indices = static_cast<int *>(std::realloc(
                         char_indices, term_video_chars * sizeof(int)));
+
+#ifdef HAVE_OPENCL
+                    // realloc opencl buffers
                     auto *realloc_fg_colors = static_cast<int *>(
                         std::realloc(fg_colors, term_video_chars * sizeof(int)));
                     auto *realloc_bg_colors = static_cast<int *>(
@@ -732,9 +737,9 @@ int main(int argc, char *argv[]) {
                         needs_update, term_video_chars * sizeof(bool)));
 
                     if (realloc_frame && realloc_old && realloc_print_buf && realloc_error
-                        && realloc_indices && realloc_fg_colors && realloc_bg_colors && realloc_needs_update) {
+                        && realloc_fg_colors && realloc_bg_colors && realloc_needs_update) {
 #else
-                        if (realloc_frame && realloc_old && realloc_print_buf && realloc_error) {
+                        if (realloc_frame && realloc_old && realloc_print_buf && realloc_error && realloc_indices) {
 #endif
                         frame = realloc_frame;
                         old = realloc_old;
@@ -747,8 +752,8 @@ int main(int argc, char *argv[]) {
                         }
 
                         error_buffer = realloc_error;
-#ifdef HAVE_OPENCL
                         char_indices = realloc_indices;
+#ifdef HAVE_OPENCL
                         fg_colors = realloc_fg_colors;
                         bg_colors = realloc_bg_colors;
                         needs_update = realloc_needs_update;
@@ -778,10 +783,10 @@ int main(int argc, char *argv[]) {
 
                         if (realloc_error) std::free(realloc_error);
                         else std::free(error_buffer);
-#ifdef HAVE_OPENCL
-                        // free successfull allocated opencl buffers
                         if (realloc_indices) std::free(realloc_indices);
                         else std::free(char_indices);
+#ifdef HAVE_OPENCL
+                        // free successfull allocated opencl buffers
                         if (realloc_fg_colors) std::free(realloc_fg_colors);
                         else std::free(fg_colors);
                         if (realloc_bg_colors) std::free(realloc_bg_colors);
@@ -814,18 +819,18 @@ int main(int argc, char *argv[]) {
 
                     // allocate dithering error buffer
                     error_buffer = static_cast<float *>(std::calloc(term_video_chars * 3, sizeof(float)));
+                    char_indices = static_cast<int *>(std::malloc(term_video_chars * sizeof(int)));
 
 #ifdef HAVE_OPENCL
                     // Allocate OpenCL buffers
-                    char_indices = static_cast<int *>(std::malloc(term_video_chars * sizeof(int)));
                     fg_colors = static_cast<int *>(std::malloc(term_video_chars * sizeof(int)));
                     bg_colors = static_cast<int *>(std::malloc(term_video_chars * sizeof(int)));
                     needs_update = static_cast<bool *>(std::malloc(term_video_chars * sizeof(bool)));
 
                     if (frame && old && print_buf && error_buffer
-                        && char_indices && fg_colors && bg_colors && needs_update) {
+                        && fg_colors && bg_colors && needs_update) {
 #else
-                        if (frame && old && print_buf && error_buffer) {
+                        if (frame && old && print_buf && error_buffer && char_indices) {
 #endif
                         alloc = true;
                     } else {
@@ -839,10 +844,10 @@ int main(int argc, char *argv[]) {
                             render_buffer = nullptr;
                         }
                         if (error_buffer) std::free(error_buffer);
+                        if (char_indices) std::free(char_indices);
 
 #ifdef HAVE_OPENCL
                         // cleanup partial opencl allocations
-                        if (char_indices) std::free(char_indices);
                         if (fg_colors) std::free(fg_colors);
                         if (bg_colors) std::free(bg_colors);
                         if (needs_update) std::free(needs_update);
@@ -957,6 +962,8 @@ int main(int argc, char *argv[]) {
                     for (int x = 0; x < video_width; x++) {
                         int char_idx = ay * video_width + x;
 
+                        // for characters which need update, compute the colors
+                        // and character to print
                         if (needs_update[char_idx]) {
                             // unpack colors
                             pixelchar[2] = (fg_colors[char_idx] >> 16) & 0xFF;
@@ -967,7 +974,6 @@ int main(int argc, char *argv[]) {
                             pixelbg[1] = (bg_colors[char_idx] >> 8) & 0xFF;
                             pixelbg[0] = bg_colors[char_idx] & 0xFF;
 
-                            char_usage[char_indices[char_idx]]++;
                             shapechar = characters[char_indices[char_idx]];
 
                             bgsame = false;
@@ -1041,6 +1047,10 @@ int main(int argc, char *argv[]) {
                                 r++;
                             }
                         }
+
+                        // track which character is used
+                        // even if it is not updated
+                        char_usage[char_indices[char_idx]]++;
                     }
                 }
             } else {
@@ -1092,6 +1102,8 @@ int main(int argc, char *argv[]) {
                                 }
                         }
 
+                        int char_idx = ay * video_width + x;
+
                         // if the difference exceeds the set threshold, reprint the entire character
                         if (diff >= diff_threshold) {
                             for (int &case_it: cases) case_it = 0;
@@ -1134,7 +1146,8 @@ int main(int argc, char *argv[]) {
                                 }
                             }
 
-                            char_usage[case_min]++;
+                            // track which char is used for this position
+                            char_indices[char_idx] = case_min;
                             shapechar = characters[case_min];
 
                             diffbg = 0;
@@ -1303,6 +1316,9 @@ int main(int argc, char *argv[]) {
                                 r++;
                             }
                         }
+
+                        // track which character is used even if it is not updated this time
+                        char_usage[char_indices[char_idx]]++;
                     }
                 }
 
