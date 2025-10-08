@@ -91,7 +91,7 @@ long long count = 0, curr_frame = 0;;
 double fps;
 int period = 0;
 
-long long printing_time, rendering_time, elapsed;
+long long printing_time, rendering_time, decode_time, elapsed;
 double avg_fps = 0;
 long long total_time = 0, avg_frame_times_sum = 0;
 std::queue<long long> frame_times;
@@ -101,8 +101,10 @@ double skip;
 
 std::chrono::time_point<std::chrono::steady_clock> start, stop, render_start, render_end;
 std::chrono::time_point<std::chrono::steady_clock> video_start, video_stop;
+std::chrono::time_point<std::chrono::steady_clock> decode_start, decode_end;
 long long total_printing_time = 0;
 long long total_render_time = 0;
+long long total_decode_time = 0;
 int cursor_moves = 0;
 
 // thread management for write operations
@@ -151,13 +153,85 @@ void terminateProgram([[maybe_unused]] int sig_num) {
     video_stop = std::chrono::steady_clock::now();
     const long long total_video_time = std::chrono::duration_cast<std::chrono::microseconds>(
         video_stop - video_start).count();
-    printf(
-        "\x1B[0m\x1B[%d;%dHframes: %6lld, dropped: %6lld,  total time: %5.2fs,  render time: %5.2fs,  printing time: %5.2fs,  chars rendered: %9lldk,  chars printed: %9lldk, cursor: %8lldk chars (%8lldk moves) \u001b[?25h",
-        msg_y + 1, 1, curr_frame, dropped, (double) total_video_time / 1000000.0,
+
+    // get terminal size
+    int term_w, term_h;
+    get_terminal_size(term_w, term_h);
+
+    // dimensions for both boxes
+    int stats_lines = 14;
+    int stats_width = 45;
+    int usage_width = 35;
+    int spacing = 3;
+
+    // determine if we can display side by side
+    bool side_by_side = false;
+    int used_chars = 0;
+    int usage_lines = 0;
+
+    if (print_hit_rate) {
+        for (int i = 0; i < DIFF_CASES; i++) {
+            if (char_usage[i] > 0) used_chars++;
+        }
+        usage_lines = used_chars + 3;
+        int total_width_needed = stats_width + spacing + usage_width;
+        side_by_side = (term_w >= total_width_needed + 4);
+    }
+
+    // calculate positions based on layout mode
+    int stats_start_row, stats_start_col;
+    int usage_start_row, usage_start_col;
+
+    if (side_by_side) {
+        // center both boxes as a combined unit
+        int combined_width = stats_width + spacing + usage_width;
+        int combined_height = std::max(stats_lines, usage_lines);
+        stats_start_col = (term_w - combined_width) / 2;
+        stats_start_row = (term_h - combined_height) / 2;
+        usage_start_col = stats_start_col + stats_width + spacing;
+        usage_start_row = stats_start_row;
+    } else {
+        // center playback stats alone
+        stats_start_row = (term_h - stats_lines) / 2;
+        stats_start_col = (term_w - stats_width) / 2;
+        // center usage stats alone (will be displayed later)
+        usage_start_row = (term_h - usage_lines) / 2;
+        usage_start_col = (term_w - usage_width) / 2;
+    }
+
+    if (stats_start_row < 1) stats_start_row = 1;
+    if (stats_start_col < 1) stats_start_col = 1;
+
+    // clear and draw playback stats box
+    printf("\x1B[0m");
+    for (int i = 0; i < stats_lines; i++) {
+        printf("\x1B[%d;%dH\x1B[48;2;0;0;0m", stats_start_row + i, stats_start_col);
+        for (int j = 0; j < stats_width; j++) {
+            printf(" ");
+        }
+    }
+
+    // print playback statistics
+    printf("\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m PLAYBACK STATISTICS ", stats_start_row + 1, stats_start_col);
+    printf("\x1B[%d;%dH frames rendered:  %lld", stats_start_row + 2, stats_start_col, curr_frame);
+    printf("\x1B[%d;%dH frames dropped:   %lld", stats_start_row + 3, stats_start_col, dropped);
+    printf("\x1B[%d;%dH total time:       %.2fs", stats_start_row + 5, stats_start_col, (double) total_video_time / 1000000.0);
+    printf("\x1B[%d;%dH decode time:      %.2fs  (%.1f%%)", stats_start_row + 6, stats_start_col,
+        (double) total_decode_time / 1000000.0,
+        (double) total_decode_time * 100.0 / (double) total_video_time);
+    printf("\x1B[%d;%dH render time:      %.2fs  (%.1f%%)", stats_start_row + 7, stats_start_col,
         (double) total_render_time / 1000000.0,
+        (double) total_render_time * 100.0 / (double) total_video_time);
+    printf("\x1B[%d;%dH printing time:    %.2fs  (%.1f%%)", stats_start_row + 8, stats_start_col,
         (double) total_printing_time / 1000000.0,
-        total_chars / 1000ll, total_chars_printed.load() / 1000ll,
-        rendered_cursor_chars / 1000ll, rendered_cursor_moves / 1000ll);
+        (double) total_printing_time * 100.0 / (double) total_video_time);
+    printf("\x1B[%d;%dH chars rendered:   %lldk", stats_start_row + 10, stats_start_col, total_chars / 1000ll);
+    printf("\x1B[%d;%dH chars printed:    %lldk", stats_start_row + 11, stats_start_col, total_chars_printed.load() / 1000ll);
+    printf("\x1B[%d;%dH cursor moves:     %lldk  (%lldk chars)", stats_start_row + 12, stats_start_col,
+        rendered_cursor_moves / 1000ll, rendered_cursor_chars / 1000ll);
+
+    // move cursor to bottom of screen and show cursor
+    printf("\x1B[%d;1H\u001b[?25h", term_h);
 
     if (print_hit_rate) {
         int sorted_indices[DIFF_CASES];
@@ -167,23 +241,68 @@ void terminateProgram([[maybe_unused]] int sig_num) {
         std::sort(sorted_indices, sorted_indices + DIFF_CASES,
                   [](const int a, const int b) { return char_usage[a] > char_usage[b]; });
 
-        printf("\n\nCHARACTER USAGE HIT RATES\n");
+        // determine how many entries we can display
+        int max_available_lines = side_by_side ? std::max(stats_lines, term_h - 2) : term_h - 2;
+        int max_entries = max_available_lines - 3; // subtract header and spacing
+        if (max_entries < 1) max_entries = 1;
 
-        for (int i = 0; i < DIFF_CASES; i++) {
+        int entries_to_show = std::min(used_chars, max_entries);
+        int hidden_entries = used_chars - entries_to_show;
+        bool show_hidden_message = (hidden_entries > 0);
+
+        // recalculate usage_lines with truncation
+        usage_lines = entries_to_show + 3; // +3 for header, spacing, and potential hidden message
+        if (show_hidden_message) usage_lines++;
+
+        // recalculate position if needed
+        if (!side_by_side) {
+            usage_start_row = (term_h - usage_lines) / 2;
+            usage_start_col = (term_w - usage_width) / 2;
+        }
+
+        if (usage_start_row < 1) usage_start_row = 1;
+        if (usage_start_col < 1) usage_start_col = 1;
+
+        // clear and draw character usage box
+        printf("\x1B[0m");
+        for (int i = 0; i < usage_lines; i++) {
+            printf("\x1B[%d;%dH\x1B[48;2;0;0;0m", usage_start_row + i, usage_start_col);
+            for (int j = 0; j < usage_width; j++) {
+                printf(" ");
+            }
+        }
+
+        printf("\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m CHARACTER USAGE RATES ",
+               usage_start_row + 1, usage_start_col);
+
+        int line = 2;
+        int displayed = 0;
+        for (int i = 0; i < DIFF_CASES && displayed < entries_to_show; i++) {
             int idx = sorted_indices[i];
             if (char_usage[idx] > 0) {
                 double percentage = (double) char_usage[idx] * 100.0 / (double) total_chars;
-                printf("%2d. %11lld  (%6.2f%%)  %s\n",
+                printf("\x1B[%d;%dH %2d. %11lld  (%6.2f%%)  %s",
+                       usage_start_row + line, usage_start_col,
                        i + 1, char_usage[idx], percentage, characters[idx]);
+                line++;
+                displayed++;
             }
         }
-        printf("\n");
-        printf("\u001b[?25h");
+
+        // show hidden entries if cannot fit all entries
+        if (show_hidden_message) {
+            printf("\x1B[%d;%dH (... %d entries hidden)",
+                   usage_start_row + line, usage_start_col, hidden_entries);
+        }
+
+        // move cursor to bottom of screen so terminal does not auto clear
+        printf("\x1B[%d;1H", term_h);
     }
 
     fflush(stdout);
     exit(0);
 }
+
 
 // lookup tables
 #define SRGB_TO_LINEAR_LUT_SIZE 256
@@ -703,18 +822,7 @@ int main(int argc, char *argv[]) {
                 }
 
                 // set the entire screen to black
-                written = snprintf(print_buf, print_buffer_size, "\x1B[0;0H\x1B[48;2;0;0;0m");
-                if (written > 0 && written < print_buffer_size) {
-                    for (int i = 0; i < curr_w * curr_h; i++) {
-                        if (written >= print_buffer_size - 1) {
-                            fprintf(stderr, "print buffer full at %d bytes\n", written);
-                            break;
-                        }
-                        print_ret = snprintf(print_buf + written, print_buffer_size - written, " ");
-                        if (print_ret > 0 && print_ret < print_buffer_size - written) written += print_ret;
-                        else break;
-                    }
-                }
+                written = snprintf(print_buf, print_buffer_size, "\x1B[2J\x1B[H\x1B[48;2;0;0;0m");
 
                 // one write call for frame
                 write(STDOUT_FILENO, print_buf, written);
@@ -723,7 +831,11 @@ int main(int argc, char *argv[]) {
             if (!alloc) break;
 
             // get frame from video
+            decode_start = std::chrono::steady_clock::now();
             int ret = cap.get_frame(small_dims[0], small_dims[1], frame);
+            decode_end = std::chrono::steady_clock::now();
+            decode_time = (int) std::chrono::duration_cast<std::chrono::microseconds>(decode_end - decode_start).count();
+            total_decode_time += decode_time;
 
             // decay error buffer to prevent temporal ghosting
             int video_height = cap.get_height() / sy;
@@ -1175,37 +1287,51 @@ int main(int argc, char *argv[]) {
                 break;
             }
             // different formatting based on terminal width
-            if (curr_w >= 153) {
+            if (curr_w >= 172) {
                 print_ret = snprintf(print_buf + written, print_buffer_size - written,
-                                     "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  fps: %6.2f  |  avg: %6.2f  |  render: %7.2fms  |  print: %7.2fms  |  cursor: %5d  |  chars: %6.1fk  |  dropped: %7lld  |  frame: %7lld   ",
+                                     "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  fps: %6.2f  |  avg: %6.2f  |  decode: %6.1fms  |  render: %6.1fms  |  print: %6.1fms  |  cursor: %5d  |  chars: %6.1fk  |  dropped: %7lld  |  frame: %7lld   ",
                                      msg_y + 1, 1,
-                                     static_cast<double>(frame_times.size()) * 1000000.0 / static_cast<double>(
-                                         avg_frame_times_sum), avg_fps,
+                                     static_cast<double>(frame_times.size()) * 1000000.0 / static_cast<double>(avg_frame_times_sum),
+                                     avg_fps,
+                                     static_cast<double>(decode_time) / 1000.0,
                                      static_cast<double>(rendering_time) / 1000.0,
                                      static_cast<double>(printing_time) / 1000.0,
                                      cursor_moves, written / 1000.0, dropped, curr_frame);
-            } else if (curr_w >= 98) {
+            } else if (curr_w >= 125) {
                 print_ret = snprintf(print_buf + written, print_buffer_size - written,
-                                     "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  fps: %6.2f  |  render: %6.1fms  |  print: %6.1fms  |  dropped: %7lld  |  frame: %7lld   ",
+                                     "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  fps: %6.2f  |  decode: %5.1fms  |  render: %5.1fms  |  print: %5.1fms  |  dropped: %7lld  |  frame: %7lld   ",
                                      msg_y + 1, 1,
-                                     static_cast<double>(frame_times.size()) * 1000000.0 / static_cast<double>(
-                                         avg_frame_times_sum),
+                                     static_cast<double>(frame_times.size()) * 1000000.0 / static_cast<double>(avg_frame_times_sum),
+                                     static_cast<double>(decode_time) / 1000.0,
                                      static_cast<double>(rendering_time) / 1000.0,
                                      static_cast<double>(printing_time) / 1000.0,
                                      dropped, curr_frame);
+            } else if (curr_w >= 88) {
+                print_ret = snprintf(print_buf + written, print_buffer_size - written,
+                                     "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  fps: %6.2f  |  d: %5.1f  r: %5.1f  p: %5.1f  |  frame: %7lld  drop: %5lld   ",
+                                     msg_y + 1, 1,
+                                     static_cast<double>(frame_times.size()) * 1000000.0 / static_cast<double>(avg_frame_times_sum),
+                                     static_cast<double>(decode_time) / 1000.0,
+                                     static_cast<double>(rendering_time) / 1000.0,
+                                     static_cast<double>(printing_time) / 1000.0,
+                                     curr_frame, dropped);
             } else if (curr_w >= 56) {
                 print_ret = snprintf(print_buf + written, print_buffer_size - written,
-                                     "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  fps: %5.1f  |  frame: %7lld  |  dropped: %7lld   ",
+                                     "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  fps: %5.1f  |  frame: %7lld  |  dropped: %5lld   ",
                                      msg_y + 1, 1,
-                                     static_cast<double>(frame_times.size()) * 1000000.0 / static_cast<double>(
-                                         avg_frame_times_sum),
+                                     static_cast<double>(frame_times.size()) * 1000000.0 / static_cast<double>(avg_frame_times_sum),
+                                     curr_frame, dropped);
+            } else if (curr_w >= 40) {
+                print_ret = snprintf(print_buf + written, print_buffer_size - written,
+                                     "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  fps: %5.1f  |  f: %7lld  d: %5lld ",
+                                     msg_y + 1, 1,
+                                     static_cast<double>(frame_times.size()) * 1000000.0 / static_cast<double>(avg_frame_times_sum),
                                      curr_frame, dropped);
             } else {
                 print_ret = snprintf(print_buf + written, print_buffer_size - written,
-                                     "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  fps: %5.1f  |  frame: %7lld ",
+                                     "\x1B[%d;%dH\x1B[48;2;0;0;0;38;2;255;255;255m  %5.1ffps  f:%lld ",
                                      msg_y + 1, 1,
-                                     static_cast<double>(frame_times.size()) * 1000000.0 / static_cast<double>(
-                                         avg_frame_times_sum),
+                                     static_cast<double>(frame_times.size()) * 1000000.0 / static_cast<double>(avg_frame_times_sum),
                                      curr_frame);
             }
             if (print_ret > 0 && print_ret < print_buffer_size - written)
