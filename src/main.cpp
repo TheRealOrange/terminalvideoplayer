@@ -596,17 +596,17 @@ int main(int argc, char *argv[]) {
         int small_dims[2];
 
         // variables used for handling the image data
-        char *frame;
-        char *old;
+        char *frame = nullptr;
+        char *old = nullptr;
         bool alloc = false;
 
         // error buffer to store color errors so we can keep track and
         // diffuse color error to neighboring pixels
-        float *error_buffer; // stores RGB error for next character
+        float *error_buffer = nullptr; // stores RGB error for next character
 
         // printing buffer
-        char *print_buf;
-        int print_buffer_size;
+        char *print_buf = nullptr;
+        int print_buffer_size = 0;
         int written = 0;
         int print_ret;
 
@@ -737,9 +737,9 @@ int main(int argc, char *argv[]) {
                         needs_update, term_video_chars * sizeof(bool)));
 
                     if (realloc_frame && realloc_old && realloc_print_buf && realloc_error
-                        && realloc_fg_colors && realloc_bg_colors && realloc_needs_update) {
+                        && realloc_fg_colors && realloc_bg_colors && realloc_needs_update && realloc_render_buf ) {
 #else
-                        if (realloc_frame && realloc_old && realloc_print_buf && realloc_error && realloc_indices) {
+                        if (realloc_frame && realloc_old && realloc_print_buf && realloc_error && realloc_indices && realloc_render_buf ) {
 #endif
                         frame = realloc_frame;
                         old = realloc_old;

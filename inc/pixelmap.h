@@ -2,7 +2,7 @@
 #define CHAR_X 8
 #define DIFF_CASES 44
 
-const char characters[DIFF_CASES][4] = {
+[[maybe_unused]] const char characters[DIFF_CASES][4] = {
  "\u2584", // bottom half block
  "\u2590", // right half block
  "\u2598", // top left quarter

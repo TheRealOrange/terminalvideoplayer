@@ -75,7 +75,14 @@ bool OpenCLProc::initialize() {
     }
 
     // Create command queue
+#ifdef CL_VERSION_2_0
+    // Use newer API for OpenCL 2.0+
+    cl_queue_properties properties[] = {0};
+    queue = clCreateCommandQueueWithProperties(context, device, properties, &err);
+#else
+    // Fall back to old API for OpenCL 1.x
     queue = clCreateCommandQueue(context, device, 0, &err);
+#endif
     if (err != CL_SUCCESS) {
         std::cerr << "Failed to create command queue" << std::endl;
         return false;
@@ -246,6 +253,7 @@ void OpenCLProc::processFrame(
 
     // Set kernel arguments
     int refresh_int = refresh ? 1 : 0;
+    int dither_int = dither ? 1 : 0;  // Add this line
     clSetKernelArg(kernel_process, 0, sizeof(cl_mem), &d_frame);
     clSetKernelArg(kernel_process, 1, sizeof(cl_mem), &d_old_frame);
     clSetKernelArg(kernel_process, 2, sizeof(cl_mem), &d_output_frame);
@@ -260,7 +268,7 @@ void OpenCLProc::processFrame(
     clSetKernelArg(kernel_process, 11, sizeof(int), &char_height);
     clSetKernelArg(kernel_process, 12, sizeof(int), &diffthreshold);
     clSetKernelArg(kernel_process, 13, sizeof(int), &refresh_int);
-    clSetKernelArg(kernel_process, 14, sizeof(bool), &dither);
+    clSetKernelArg(kernel_process, 14, sizeof(int), &dither_int);
     clSetKernelArg(kernel_process, 15, sizeof(cl_mem), &d_pixelmap);
 
     // Execute kernel
