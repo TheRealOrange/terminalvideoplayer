@@ -1,37 +1,49 @@
 cmake_minimum_required(VERSION 3.15)
 project(tvp VERSION 1.0 LANGUAGES CXX)
 
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    message(STATUS "setting build type to 'release' as none was specified.")
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
+    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
+option(ENABLE_OPENCL "enable opencl acceleration if available" ON)
 
 # Check if LTO is supported
 include(CheckIPOSupported)
 check_ipo_supported(RESULT ipo_supported OUTPUT error)
 
-# optional opencl if found
-find_package(OpenCL)
-if (OpenCL_FOUND)
-    message(STATUS "opencl found: gpu acceleration enabled")
-    add_compile_definitions(HAVE_OPENCL)
-    set(OPENCL_SOURCES src/opencl_proc.cpp)
+# optional opencl if found and enabled
+if (ENABLE_OPENCL)
+    find_package(OpenCL)
+    if (OpenCL_FOUND)
+        message(STATUS "opencl found: gpu acceleration enabled")
+        add_compile_definitions(HAVE_OPENCL)
+        set(OPENCL_SOURCES src/opencl_proc.cpp)
 
-    # Include the embed function
-    include(${CMAKE_CURRENT_SOURCE_DIR}/embed_file.cmake)
+        # Include the embed function
+        include(${CMAKE_CURRENT_SOURCE_DIR}/embed_file.cmake)
 
-    # Embed OpenCL kernel file
-    embed_opencl_kernel(
-            INPUT_FILE "${CMAKE_CURRENT_SOURCE_DIR}/src/process_frame.cl"
-            OUTPUT_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/inc/generated/kernel_source.h"
-            VARIABLE_NAME "kernel_source"
-    )
+        # Embed OpenCL kernel file
+        embed_opencl_kernel(
+                INPUT_FILE "${CMAKE_CURRENT_SOURCE_DIR}/src/process_frame.cl"
+                OUTPUT_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/inc/generated/kernel_source.h"
+                VARIABLE_NAME "kernel_source"
+        )
 
-    # Track the kernel file so CMake reconfigures when it changes
-    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-            "${CMAKE_CURRENT_SOURCE_DIR}/src/process_frame.cl"
-    )
-else ()
-    message(STATUS "opencl not found: building without GPU acceleration")
+        # Track the kernel file so CMake reconfigures when it changes
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+                "${CMAKE_CURRENT_SOURCE_DIR}/src/process_frame.cl"
+        )
+    else ()
+        message(STATUS "opencl not found: building without GPU acceleration")
+    endif ()
+else()
+    message(STATUS "opencl disabled by user: building without GPU acceleration")
 endif ()
 
 # ffmpeg libraries

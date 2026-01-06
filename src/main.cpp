@@ -476,7 +476,9 @@ int main(int argc, char *argv[]) {
 
     // Parse command line arguments
     const char *video_file = nullptr;
+#ifdef HAVE_OPENCL
     bool enable_opencl = true;
+#endif
     bool enable_audio = true;
     bool dither_enable = false;
     bool use_stdin = false;
@@ -488,16 +490,21 @@ int main(int argc, char *argv[]) {
             printf("If no file is provided, reads from stdin\n\n");
             printf("Options:\n");
             printf("  -                Explicitly use stdin as input\n");
+#ifdef HAVE_OPENCL
             printf("  --force-cpu      Force CPU computation\n");
+#endif
             printf("  --no-audio       Disable audio playback\n");
             printf("  --dither         Enable dithering\n");
             printf("  --print-usage    Print character usage rates\n");
             printf("  --help           Show this help message\n");
             return 0;
         }
+#ifdef HAVE_OPENCL
         if (strcmp(argv[i], "--force-cpu") == 0) {
             enable_opencl = false;
-        } else if (strcmp(argv[i], "--no-audio") == 0) {
+        } else
+#endif
+            if (strcmp(argv[i], "--no-audio") == 0) {
             enable_audio = false;
         } else if (strcmp(argv[i], "--dither") == 0) {
             dither_enable = true;
@@ -610,12 +617,15 @@ int main(int argc, char *argv[]) {
         int written = 0;
         int print_ret;
 
+
         // opencl buffers
         // actually char indices is also used for stats tracking
         int *char_indices = nullptr;
+#ifdef HAVE_OPENCL
         int *fg_colors = nullptr;
         int *bg_colors = nullptr;
         bool *needs_update = nullptr;
+#endif
 
         // variables used for pixel update
         int diff = 0;
@@ -1054,11 +1064,11 @@ int main(int argc, char *argv[]) {
                     }
                 }
             } else {
+#endif
                 // variables to store the pointer to the start of each row for easier reference
                 // each pixel uses CHAR_Y rows of the actual image
                 char *row[CHAR_Y];
                 char *oldrow[CHAR_Y];
-#endif
                 for (int ay = 0; ay < video_height; ay++) {
                     // set the row pointers
                     for (int i = 0; i < CHAR_Y; i++) {
